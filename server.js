@@ -106,8 +106,9 @@ app.get('/', (req, res) => {
 // Get all players
 app.get('/api/players', (req, res) => {
   db.all(`
-    SELECT player_uuid, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
+    SELECT player_uuid, max(timestamp), x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
     FROM players 
+    GROUP BY player_uuid
     ORDER BY created_at DESC 
     LIMIT 100
   `, (err, rows) => {
