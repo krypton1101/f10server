@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Racing Configuration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .dashboard-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .dashboard-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav button:hover, .nav button.active {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .content {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .list-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .list-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .item-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .item-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #ddd;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .item-meta {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        @media (max-width: 768px) {
+            .form-row, .form-row-3 {
+                grid-template-columns: 1fr;
+            }
+            
+            .list-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .item-info {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚙️ Racing Configuration</h1>
+        <a href="/" class="dashboard-link">🏁 Dashboard</a>
+    </div>
+
+    <div class="container">
+        <nav class="nav">
+            <button class="nav-btn active" onclick="showSection('teams')">Teams</button>
+            <button class="nav-btn" onclick="showSection('checkpoints')">Checkpoints</button>
+            <button class="nav-btn" onclick="showSection('settings')">Settings</button>
+        </nav>
+
+        <div class="content">
+            <div id="teams-section" class="section active">
+                <h2>Team Management</h2>
+                
+                <div id="team-status" class="status" style="display: none;"></div>
+
+                <h3>Add New Team</h3>
+                <form id="team-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="team-name">Team Name:</label>
+                            <input type="text" id="team-name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="team-color">Team Color:</label>
+                            <input type="color" id="team-color" name="color" value="#ff6b6b">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add Team</button>
+                </form>
+
+                <h3>Assign Player to Team</h3>
+                <form id="player-team-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="player-uuid">Player UUID:</label>
+                            <input type="text" id="player-uuid" name="player_uuid" required placeholder="Enter player UUID">
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-team">Team:</label>
+                            <select id="assign-team" name="team_id" required>
+                                <option value="">Select a team...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Assign Player</button>
+                </form>
+
+                <h3>Existing Teams</h3>
+                <div id="teams-list" class="list-container">
+                    <div class="loading">Loading teams...</div>
+                </div>
+            </div>
+
+            <div id="checkpoints-section" class="section">
+                <h2>Checkpoint Management</h2>
+                
+                <div id="checkpoint-status" class="status" style="display: none;"></div>
+
+                <h3>Add New Checkpoint</h3>
+                <form id="checkpoint-form">
+                    <div class="form-group">
+                        <label for="checkpoint-name">Checkpoint Name:</label>
+                        <input type="text" id="checkpoint-name" name="name" required>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is-start-finish" name="is_start_finish">
+                        <label for="is-start-finish">Start/Finish Checkpoint</label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="order-index">Order Index:</label>
+                        <input type="number" id="order-index" name="order_index" value="0" min="0">
+                    </div>
+                    
+                    <h4>Checkpoint Coordinates (AABB)</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="min-x">Min X:</label>
+                            <input type="number" id="min-x" name="min_x" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="min-y">Min Y:</label>
+                            <input type="number" id="min-y" name="min_y" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="min-z">Min Z:</label>
+                            <input type="number" id="min-z" name="min_z" step="0.1" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="max-x">Max X:</label>
+                            <input type="number" id="max-x" name="max_x" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="max-y">Max Y:</label>
+                            <input type="number" id="max-y" name="max_y" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="max-z">Max Z:</label>
+                            <input type="number" id="max-z" name="max_z" step="0.1" required>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">Add Checkpoint</button>
+                </form>
+
+                <h3>Existing Checkpoints</h3>
+                <div id="checkpoints-list" class="list-container">
+                    <div class="loading">Loading checkpoints...</div>
+                </div>
+            </div>
+
+            <div id="settings-section" class="section">
+                <h2>General Settings</h2>
+                
+                <div id="settings-status" class="status" style="display: none;"></div>
+
+                <form id="settings-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="maxPlayers">Maximum Players to Track:</label>
+                            <input type="number" id="maxPlayers" name="maxPlayers" min="1" max="1000" value="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="updateInterval">Update Interval (ms):</label>
+                            <input type="number" id="updateInterval" name="updateInterval" min="100" max="10000" value="1000">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="websocketPort">WebSocket Port:</label>
+                            <input type="number" id="websocketPort" name="websocketPort" min="1024" max="65535" value="8080" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="httpPort">HTTP Port:</label>
+                            <input type="number" id="httpPort" name="httpPort" min="1024" max="65535" value="3000" readonly>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Update Settings</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Navigation
+        function showSection(section) {
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(`${section}-section`).classList.add('active');
+            
+            if (section === 'teams') {
+                loadTeams();
+            } else if (section === 'checkpoints') {
+                loadCheckpoints();
+            } else if (section === 'settings') {
+                loadSettings();
+            }
+        }
+
+        // Teams management
+        async function loadTeams() {
+            try {
+                const response = await fetch('/api/teams');
+                const teams = await response.json();
+                updateTeamsDisplay(teams);
+                updateTeamSelect(teams);
+            } catch (error) {
+                console.error('Error loading teams:', error);
+                document.getElementById('teams-list').innerHTML = 
+                    '<div class="no-data">Error loading teams</div>';
+            }
+        }
+
+        function updateTeamsDisplay(teams) {
+            const container = document.getElementById('teams-list');
+            
+            if (teams.length === 0) {
+                container.innerHTML = '<div class="no-data">No teams found</div>';
+                return;
+            }
+
+            container.innerHTML = teams.map(team => `
+                <div class="list-item">
+                    <div class="item-info">
+                        <div class="item-color" style="background-color: ${team.color}"></div>
+                        <div class="item-details">
+                            <div class="item-name">${team.name}</div>
+                            <div class="item-meta">
+                                Players: ${team.player_count} | 
+                                Laps: ${team.lap_count} | 
+                                Max Checkpoints: ${team.max_checkpoints} | 
+                                Status: ${team.is_active ? 'Active' : 'Finished'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-danger" onclick="deleteTeam(${team.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTeamSelect(teams) {
+            const select = document.getElementById('assign-team');
+            select.innerHTML = '<option value="">Select a team...</option>' +
+                teams.map(team => `<option value="${team.id}">${team.name}</option>`).join('');
+        }
+
+        async function deleteTeam(teamId) {
+            if (!confirm('Are you sure you want to delete this team?')) return;
+            
+            try {
+                const response = await fetch(`/api/teams/${teamId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('team-status', 'Team deleted successfully!', 'success');
+                    loadTeams();
+                } else {
+                    showStatus('team-status', 'Error deleting team', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting team:', error);
+                showStatus('team-status', 'Error deleting team', 'error');
+            }
+        }
+
+        // Checkpoints management
+        async function loadCheckpoints() {
+            try {
+                const response = await fetch('/api/checkpoints');
+                const checkpoints = await response.json();
+                updateCheckpointsDisplay(checkpoints);
+            } catch (error) {
+                console.error('Error loading checkpoints:', error);
+                document.getElementById('checkpoints-list').innerHTML = 
+                    '<div class="no-data">Error loading checkpoints</div>';
+            }
+        }
+
+        function updateCheckpointsDisplay(checkpoints) {
+            const container = document.getElementById('checkpoints-list');
+            
+            if (checkpoints.length === 0) {
+                container.innerHTML = '<div class="no-data">No checkpoints found</div>';
+                return;
+            }
+
+            container.innerHTML = checkpoints.map(checkpoint => `
+                <div class="list-item">
+                    <div class="item-info">
+                        <div class="item-details">
+                            <div class="item-name">
+                                ${checkpoint.name}
+                                ${checkpoint.is_start_finish ? ' (Start/Finish)' : ''}
+                            </div>
+                            <div class="item-meta">
+                                Order: ${checkpoint.order_index} | 
+                                Min: (${checkpoint.min_x}, ${checkpoint.min_y}, ${checkpoint.min_z}) | 
+                                Max: (${checkpoint.max_x}, ${checkpoint.max_y}, ${checkpoint.max_z})
+                            </div>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-danger" onclick="deleteCheckpoint(${checkpoint.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteCheckpoint(checkpointId) {
+            if (!confirm('Are you sure you want to delete this checkpoint?')) return;
+            
+            try {
+                const response = await fetch(`/api/checkpoints/${checkpointId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('checkpoint-status', 'Checkpoint deleted successfully!', 'success');
+                    loadCheckpoints();
+                } else {
+                    showStatus('checkpoint-status', 'Error deleting checkpoint', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting checkpoint:', error);
+                showStatus('checkpoint-status', 'Error deleting checkpoint', 'error');
+            }
+        }
+
+        // Settings management
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                document.getElementById('maxPlayers').value = config.maxPlayers;
+                document.getElementById('updateInterval').value = config.updateInterval;
+                document.getElementById('websocketPort').value = config.websocketPort;
+                document.getElementById('httpPort').value = config.httpPort;
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                showStatus('settings-status', 'Error loading settings', 'error');
+            }
+        }
+
+        // Form handlers
+        document.getElementById('team-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const team = {
+                name: formData.get('name'),
+                color: formData.get('color')
+            };
+            
+            try {
+                const response = await fetch('/api/teams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(team)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('team-status', 'Team created successfully!', 'success');
+                    e.target.reset();
+                    loadTeams();
+                } else {
+                    showStatus('team-status', 'Error creating team', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating team:', error);
+                showStatus('team-status', 'Error creating team', 'error');
+            }
+        });
+
+        document.getElementById('player-team-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const assignment = {
+                player_uuid: formData.get('player_uuid'),
+                team_id: parseInt(formData.get('team_id'))
+            };
+            
+            try {
+                const response = await fetch('/api/player-team', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(assignment)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('team-status', 'Player assigned to team successfully!', 'success');
+                    e.target.reset();
+                } else {
+                    showStatus('team-status', 'Error assigning player', 'error');
+                }
+            } catch (error) {
+                console.error('Error assigning player:', error);
+                showStatus('team-status', 'Error assigning player', 'error');
+            }
+        });
+
+        document.getElementById('checkpoint-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const checkpoint = {
+                name: formData.get('name'),
+                is_start_finish: formData.get('is_start_finish') === 'on' ? 1 : 0,
+                order_index: parseInt(formData.get('order_index')),
+                min_x: parseFloat(formData.get('min_x')),
+                min_y: parseFloat(formData.get('min_y')),
+                min_z: parseFloat(formData.get('min_z')),
+                max_x: parseFloat(formData.get('max_x')),
+                max_y: parseFloat(formData.get('max_y')),
+                max_z: parseFloat(formData.get('max_z'))
+            };
+            
+            try {
+                const response = await fetch('/api/checkpoints', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(checkpoint)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('checkpoint-status', 'Checkpoint created successfully!', 'success');
+                    e.target.reset();
+                    loadCheckpoints();
+                } else {
+                    showStatus('checkpoint-status', 'Error creating checkpoint', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating checkpoint:', error);
+                showStatus('checkpoint-status', 'Error creating checkpoint', 'error');
+            }
+        });
+
+        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                maxPlayers: parseInt(formData.get('maxPlayers')),
+                updateInterval: parseInt(formData.get('updateInterval'))
+            };
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('settings-status', 'Settings updated successfully!', 'success');
+                } else {
+                    showStatus('settings-status', 'Error updating settings', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating settings:', error);
+                showStatus('settings-status', 'Error updating settings', 'error');
+            }
+        });
+
+        // Utility functions
+        function showStatus(elementId, message, type) {
+            const status = document.getElementById(elementId);
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTeams();
+        });
+    </script>
+</body>
+</html>
