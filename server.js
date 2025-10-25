@@ -18,7 +18,7 @@ const db = new sqlite3.Database('players.db');
 
 // Create tables if they don't exist
 db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS players (
+  db.run(`CREATE TABLE IF NOT EXISTS player_positions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_uuid TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
@@ -56,9 +56,11 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS player_teams (
+  db.run(`CREATE TABLE IF NOT EXISTS players (
     player_uuid TEXT PRIMARY KEY,
     team_id INTEGER NOT NULL,
+    points_count INTEGER DEFAULT 0,
+    current_lap_count INTEGER DEFAULT 0,
     FOREIGN KEY (team_id) REFERENCES teams (id)
   )`);
 
@@ -85,22 +87,35 @@ db.serialize(() => {
 
 // Helper functions for checkpoint detection
 function lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax) {
+  let dot = p1;
   const dir = { x: p2.x - p1.x, y: p2.y - p1.y, z: p2.z - p1.z };
-  let tmin = 0, tmax = 1;
-  
-  for (let axis of ['x', 'y', 'z']) {
-    if (Math.abs(dir[axis]) < 1e-8) {
-      if (p1[axis] < aabbMin[axis] || p1[axis] > aabbMax[axis]) return false;
-    } else {
-      let t1 = (aabbMin[axis] - p1[axis]) / dir[axis];
-      let t2 = (aabbMax[axis] - p1[axis]) / dir[axis];
-      if (t1 > t2) [t1, t2] = [t2, t1];
-      tmin = Math.max(tmin, t1);
-      tmax = Math.min(tmax, t2);
-      if (tmin > tmax) return false;
+
+  for (let i = 0; i<30; i++) {
+    if (dot.x >= aabbMin.x && dot.y >= aabbMin.y && dot.z >= aabbMin.z &&
+        dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) // If dot already in AABB
+      return true;
+    else if ((xor(dir.x <= 0, !(dot.x >= aabbMin.x)) || xor(dir.x >= 0, !(dot.x <= aabbMax.x))) &&
+            (xor(dir.y <= 0, !(dot.y >= aabbMin.y)) || xor(dir.y >= 0, !(dot.y <= aabbMax.y))) &&
+            (xor(dir.z <= 0, !(dot.z >= aabbMin.z)) || xor(dir.z >= 0, !(dot.z <= aabbMax.z)))) { // If dot will move towards AABB
+      dir = { x: dir.x/2, y: dir.y/2, z: dir.z/2 };
+      dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
+      continue;
+    }
+    else if ((xor(dir.x <= 0, !(dot.x >= aabbMin.x)) || xor(dir.x >= 0, !(dot.x <= aabbMax.x))) ||
+            (xor(dir.y <= 0, !(dot.y >= aabbMin.y)) || xor(dir.y >= 0, !(dot.y <= aabbMax.y))) ||
+            (xor(dir.z <= 0, !(dot.z >= aabbMin.z)) || xor(dir.z >= 0, !(dot.z <= aabbMax.z)))) // If mirrored dir will not move towards AABB
+      return false;
+    else {
+      dir = { x: -dir.x/2, y: -dir.y/2, z: -dir.z/2 };
+      dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
+      continue;
     }
   }
-  return true;
+  return false;
+}
+
+function xor(val1, val2) {
+  return (val1 && !val2) || (!val1 && val2);
 }
 
 function checkPlayerCheckpoints(playerUuid, callback) {
@@ -134,7 +149,7 @@ function checkPlayerCheckpoints(playerUuid, callback) {
   });
 }
 
-function processCheckpointCrossing(playerUuid, teamId, checkpointId, callback) {
+function processCheckpointCrossing(playerUuid, checkpointId, callback) {
   db.get(`
     SELECT is_start_finish FROM checkpoints WHERE id = ?
   `, [checkpointId], (err, checkpoint) => {
@@ -159,9 +174,9 @@ function processCheckpointCrossing(playerUuid, teamId, checkpointId, callback) {
         if (hasAllCheckpoints) {
           // Complete lap for the team
           db.run(`
-            UPDATE teams SET lap_count = lap_count + 1, is_active = CASE WHEN lap_count + 1 >= 20 THEN 0 ELSE 1 END
-            WHERE id = ?
-          `, [teamId], (err) => {
+            UPDATE players SET current_lap_count = current_lap_count + 1, is_active = CASE WHEN current_lap_count + 1 >= 20 THEN 0 ELSE 1 END
+            WHERE player_uuid = ?
+          `, [playerUuid], (err) => {
             if (err) {
               callback(err);
               return;
@@ -176,7 +191,7 @@ function processCheckpointCrossing(playerUuid, teamId, checkpointId, callback) {
                 return;
               }
               
-              console.log(`Player ${playerUuid} completed lap for team ${teamId}!`);
+              console.log(`Player ${playerUuid} completed lap ${current_lap_count}!`);
               callback(null, true); // Lap completed
             });
           });
@@ -221,7 +236,7 @@ wss.on('connection', (ws, req) => {
       
       // Store current position in database
       const stmt = db.prepare(`
-        INSERT INTO players (player_uuid, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch)
+        INSERT INTO player_positions (player_uuid, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
@@ -242,9 +257,9 @@ wss.on('connection', (ws, req) => {
       
       // Get player's team
       db.get(`
-        SELECT t.id as team_id FROM player_teams pt
-        JOIN teams t ON pt.team_id = t.id
-        WHERE pt.player_uuid = ? AND t.is_active = 1
+        SELECT t.id as team_id FROM players p
+        JOIN teams t ON p.team_id = t.id
+        WHERE p.player_uuid = ? AND t.is_active = 1
       `, [playerData.UUID], (err, teamRow) => {
         if (err || !teamRow) {
           ws.send(JSON.stringify({ 
@@ -378,7 +393,7 @@ app.get('/config', (req, res) => {
 app.get('/api/players', (req, res) => {
   db.all(`
     SELECT player_uuid, max(timestamp), x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
-    FROM players 
+    FROM player_positions 
     GROUP BY player_uuid
     ORDER BY created_at DESC 
     LIMIT 100
@@ -439,15 +454,15 @@ app.post('/api/config', (req, res) => {
 // Teams API
 app.get('/api/teams', (req, res) => {
   db.all(`
-    SELECT t.*, COUNT(pt.player_uuid) as player_count,
+    SELECT t.*, COUNT(p.player_uuid) as player_count,
            COALESCE(MAX(player_checkpoint_counts.checkpoint_count), 0) as max_checkpoints
     FROM teams t
-    LEFT JOIN player_teams pt ON t.id = pt.team_id
+    LEFT JOIN players p ON t.id = p.team_id
     LEFT JOIN (
       SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
       FROM player_checkpoints
       GROUP BY player_uuid
-    ) player_checkpoint_counts ON pt.player_uuid = player_checkpoint_counts.player_uuid
+    ) player_checkpoint_counts ON p.player_uuid = player_checkpoint_counts.player_uuid
     GROUP BY t.id
     ORDER BY t.lap_count DESC, max_checkpoints DESC, t.name
   `, (err, rows) => {
@@ -580,7 +595,7 @@ app.post('/api/player-team', (req, res) => {
   }
   
   db.run(`
-    INSERT OR REPLACE INTO player_teams (player_uuid, team_id)
+    INSERT OR REPLACE INTO players (player_uuid, team_id)
     VALUES (?, ?)
   `, [player_uuid, team_id], function(err) {
     if (err) {
