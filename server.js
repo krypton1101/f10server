@@ -69,7 +69,7 @@ db.serialize(() => {
     checkpoint_id INTEGER NOT NULL,
     collected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (player_uuid, checkpoint_id),
-    FOREIGN KEY (player_uuid) REFERENCES player_teams (player_uuid),
+    FOREIGN KEY (player_uuid) REFERENCES players (player_uuid),
     FOREIGN KEY (checkpoint_id) REFERENCES checkpoints (id)
   )`);
 
@@ -88,27 +88,35 @@ db.serialize(() => {
 // Helper functions for checkpoint detection
 function lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax) {
   let dot = p1;
-  const dir = { x: p2.x - p1.x, y: p2.y - p1.y, z: p2.z - p1.z };
+  let dir = { x: p2.x - p1.x, y: p2.y - p1.y, z: p2.z - p1.z };
+  if (p2.x >= aabbMin.x && p2.y >= aabbMin.y && p2.z >= aabbMin.z &&
+      p2.x <= aabbMax.x && p2.y <= aabbMax.y && p2.z <= aabbMax.z) {// If end dot already in AABB
+    return true;
+  }
 
   for (let i = 0; i<30; i++) {
     if (dot.x >= aabbMin.x && dot.y >= aabbMin.y && dot.z >= aabbMin.z &&
-        dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) // If dot already in AABB
+        dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) {// If dot already in AABB
       return true;
-    else if ((xor(dir.x <= 0, !(dot.x >= aabbMin.x)) || xor(dir.x >= 0, !(dot.x <= aabbMax.x))) &&
-            (xor(dir.y <= 0, !(dot.y >= aabbMin.y)) || xor(dir.y >= 0, !(dot.y <= aabbMax.y))) &&
-            (xor(dir.z <= 0, !(dot.z >= aabbMin.z)) || xor(dir.z >= 0, !(dot.z <= aabbMax.z)))) { // If dot will move towards AABB
+    }
+    else if ((xor(dir.x < 0, !(dot.x >= aabbMin.x)) || xor(dir.x > 0, !(dot.x <= aabbMax.x)) || dir.x == 0) &&
+            (xor(dir.y < 0, !(dot.y >= aabbMin.y)) || xor(dir.y > 0, !(dot.y <= aabbMax.y)) || dir.y == 0) &&
+            (xor(dir.z < 0, !(dot.z >= aabbMin.z)) || xor(dir.z > 0, !(dot.z <= aabbMax.z)) || dir.z == 0)) { // If dot will move towards AABB
       dir = { x: dir.x/2, y: dir.y/2, z: dir.z/2 };
       dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
       continue;
     }
-    else if ((xor(dir.x <= 0, !(dot.x >= aabbMin.x)) || xor(dir.x >= 0, !(dot.x <= aabbMax.x))) ||
-            (xor(dir.y <= 0, !(dot.y >= aabbMin.y)) || xor(dir.y >= 0, !(dot.y <= aabbMax.y))) ||
-            (xor(dir.z <= 0, !(dot.z >= aabbMin.z)) || xor(dir.z >= 0, !(dot.z <= aabbMax.z)))) // If mirrored dir will not move towards AABB
+    else if (xor(dir.x < 0, !(dot.x >= aabbMin.x)) || xor(dir.x > 0, !(dot.x <= aabbMax.x)) ||
+            xor(dir.y < 0, !(dot.y >= aabbMin.y)) || xor(dir.y > 0, !(dot.y <= aabbMax.y)) ||
+            xor(dir.z < 0, !(dot.z >= aabbMin.z)) || xor(dir.z > 0, !(dot.z <= aabbMax.z))) // If mirrored dir will not move towards AABB
       return false;
-    else {
+    else if ( i > 0) { // Can't mirror on first iteration
       dir = { x: -dir.x/2, y: -dir.y/2, z: -dir.z/2 };
       dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
       continue;
+    }
+    else {
+      return false;
     }
   }
   return false;
@@ -273,83 +281,65 @@ wss.on('connection', (ws, req) => {
         const teamId = teamRow.team_id;
         
         // Get previous position for trajectory checking
-        db.get(`
-          SELECT prev_x, prev_y, prev_z, curr_x, curr_y, curr_z
-          FROM player_positions_history
+        db.all(`
+          SELECT x, y, z
+          FROM player_positions
           WHERE player_uuid = ?
-        `, [playerData.UUID], (err, posRow) => {
+          ORDER BY timestamp DESC
+          LIMIT 2
+        `, [playerData.UUID], (err, posRows) => {
           if (err) {
             console.error('Error getting position history:', err);
             return;
           }
           
-          // Update position history
-          const updatePosStmt = db.prepare(`
-            INSERT OR REPLACE INTO player_positions_history 
-            (player_uuid, prev_x, prev_y, prev_z, curr_x, curr_y, curr_z, last_update)
-            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `);
-          
-          if (posRow) {
-            updatePosStmt.run(
-              playerData.UUID,
-              posRow.curr_x, posRow.curr_y, posRow.curr_z, // previous becomes current
-              playerData.position.x, playerData.position.y, playerData.position.z, // new current
-            );
-          } else {
-            updatePosStmt.run(
-              playerData.UUID,
-              playerData.position.x, playerData.position.y, playerData.position.z, // no previous
-              playerData.position.x, playerData.position.y, playerData.position.z, // current
-            );
+          if (posRows.length < 2) {
+            return;
           }
-          updatePosStmt.finalize();
+        
+          const prevPos = { x: posRows[1].x, y: posRows[1].y, z: posRows[1].z };
+          const currPos = { x: playerData.position.x, y: playerData.position.y, z: playerData.position.z };
           
           // Check checkpoint crossings if we have previous position
-          if (posRow && posRow.prev_x !== null) {
-            db.all(`
-              SELECT id, name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z
-              FROM checkpoints
-              ORDER BY order_index
-            `, (err, checkpoints) => {
-              if (err) {
-                console.error('Error getting checkpoints:', err);
-                return;
-              }
+          db.all(`
+            SELECT id, name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z
+            FROM checkpoints
+            ORDER BY order_index
+          `, (err, checkpoints) => {
+            if (err) {
+              console.error('Error getting checkpoints:', err);
+              return;
+            }
+            
+            checkpoints.forEach(checkpoint => {
+              const aabbMin = { x: checkpoint.min_x, y: checkpoint.min_y, z: checkpoint.min_z };
+              const aabbMax = { x: checkpoint.max_x, y: checkpoint.max_y, z: checkpoint.max_z };
               
-              const prevPos = { x: posRow.prev_x, y: posRow.prev_y, z: posRow.prev_z };
-              const currPos = { x: playerData.position.x, y: playerData.position.y, z: playerData.position.z };
-              
-              checkpoints.forEach(checkpoint => {
-                const aabbMin = { x: checkpoint.min_x, y: checkpoint.min_y, z: checkpoint.min_z };
-                const aabbMax = { x: checkpoint.max_x, y: checkpoint.max_y, z: checkpoint.max_z };
-                
-                if (lineSegmentIntersectsAABB(prevPos, currPos, aabbMin, aabbMax)) {
-                  // Check if this checkpoint was already collected by this player
-                  db.get(`
-                    SELECT 1 FROM player_checkpoints 
-                    WHERE player_uuid = ? AND checkpoint_id = ?
-                  `, [playerData.UUID, checkpoint.id], (err, collectedRow) => {
-                    if (err || collectedRow) {
-                      return; // Already collected or error
+              if (lineSegmentIntersectsAABB(prevPos, currPos, aabbMin, aabbMax)) {
+                // Check if this checkpoint was already collected by this player
+                db.get(`
+                  SELECT 1 FROM player_checkpoints 
+                  WHERE player_uuid = ? AND checkpoint_id = ?
+                `, [playerData.UUID, checkpoint.id], (err, collectedRow) => {
+                  if (err || collectedRow) {
+                    return; // Already collected or error
+                  }
+                  
+                  // Process checkpoint crossing
+                  processCheckpointCrossing(playerData.UUID, teamId, checkpoint.id, (err, lapCompleted) => {
+                    if (err) {
+                      console.error('Error processing checkpoint crossing:', err);
+                      return;
                     }
                     
-                    // Process checkpoint crossing
-                    processCheckpointCrossing(playerData.UUID, teamId, checkpoint.id, (err, lapCompleted) => {
-                      if (err) {
-                        console.error('Error processing checkpoint crossing:', err);
-                        return;
-                      }
-                      
-                      if (lapCompleted) {
-                        console.log(`Player ${playerData.UUID} completed a lap for team ${teamId}!`);
-                      }
-                    });
+                    if (lapCompleted) {
+                      console.log(`Player ${playerData.UUID} completed a lap for team ${teamId}!`);
+                    }
                   });
-                }
-              });
+                });
+              }
             });
-          }
+          });
         });
         
         ws.send(JSON.stringify({ 
@@ -548,7 +538,7 @@ app.post('/api/checkpoints', (req, res) => {
   db.run(`
     INSERT INTO checkpoints (name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [name, is_start_finish || 0, min_x, min_y, min_z, max_x, max_y, max_z, order_index || 0], function(err) {
+  `, [name, is_start_finish || 0, min_x, min_y, min_z, max_x + 1, max_y + 1, max_z + 1, order_index || 0], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -558,6 +548,31 @@ app.post('/api/checkpoints', (req, res) => {
       status: 'success', 
       message: 'Checkpoint created successfully',
       checkpointId: this.lastID
+    });
+  });
+});
+
+app.post('/api/checkpoints/:id', (req, res) => {
+  const checkpointId = req.params.id;
+  const { name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index } = req.body;
+  
+  if (!name || min_x === undefined || min_y === undefined || min_z === undefined || 
+      max_x === undefined || max_y === undefined || max_z === undefined || order_index === undefined) {
+    res.status(400).json({ error: 'Name and coordinates are required' });
+    return;
+  }
+  
+  db.run(`
+    UPDATE checkpoints SET name = ?, is_start_finish = ?, min_x = ?, min_y = ?, min_z = ?, max_x = ?, max_y = ?, max_z = ?, order_index = ? WHERE id = ?
+  `, [name, is_start_finish || 0, min_x, min_y, min_z, max_x + 1, max_y + 1, max_z + 1, order_index, checkpointId], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Checkpoint updated successfully'
     });
   });
 });
@@ -617,7 +632,7 @@ app.get('/api/leaderboard', (req, res) => {
            COUNT(pt.player_uuid) as player_count,
            COALESCE(MAX(player_checkpoint_counts.checkpoint_count), 0) as max_checkpoints
     FROM teams t
-    LEFT JOIN player_teams pt ON t.id = pt.team_id
+    LEFT JOIN players pt ON t.id = pt.team_id
     LEFT JOIN (
       SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
       FROM player_checkpoints
@@ -653,3 +668,9 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
+// Export functions for testing
+module.exports = {
+  lineSegmentIntersectsAABB,
+  xor
+};
