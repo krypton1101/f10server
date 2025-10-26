@@ -37,7 +37,6 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     color TEXT NOT NULL,
-    lap_count INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
@@ -61,6 +60,7 @@ db.serialize(() => {
     team_id INTEGER NOT NULL,
     points_count INTEGER DEFAULT 0,
     current_lap_count INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
     FOREIGN KEY (team_id) REFERENCES teams (id)
   )`);
 
@@ -126,6 +126,14 @@ function xor(val1, val2) {
   return (val1 && !val2) || (!val1 && val2);
 }
 
+function min(val1, val2) {
+  return val1 < val2 ? val1 : val2;
+}
+
+function max(val1, val2) {
+  return val1 > val2 ? val1 : val2;
+}
+
 function checkPlayerCheckpoints(playerUuid, callback) {
   db.all(`
     SELECT COUNT(DISTINCT pc.checkpoint_id) as collected_count
@@ -182,7 +190,7 @@ function processCheckpointCrossing(playerUuid, checkpointId, callback) {
         if (hasAllCheckpoints) {
           // Complete lap for the team
           db.run(`
-            UPDATE players SET current_lap_count = current_lap_count + 1, is_active = CASE WHEN current_lap_count + 1 >= 20 THEN 0 ELSE 1 END
+            UPDATE players SET current_lap_count = current_lap_count + 1
             WHERE player_uuid = ?
           `, [playerUuid], (err) => {
             if (err) {
@@ -199,7 +207,7 @@ function processCheckpointCrossing(playerUuid, checkpointId, callback) {
                 return;
               }
               
-              console.log(`Player ${playerUuid} completed lap ${current_lap_count}!`);
+              console.log(`Player ${playerUuid} completed a lap!`);
               callback(null, true); // Lap completed
             });
           });
@@ -326,7 +334,7 @@ wss.on('connection', (ws, req) => {
                   }
                   
                   // Process checkpoint crossing
-                  processCheckpointCrossing(playerData.UUID, teamId, checkpoint.id, (err, lapCompleted) => {
+                  processCheckpointCrossing(playerData.UUID, checkpoint.id, (err, lapCompleted) => {
                     if (err) {
                       console.error('Error processing checkpoint crossing:', err);
                       return;
@@ -538,7 +546,7 @@ app.post('/api/checkpoints', (req, res) => {
   db.run(`
     INSERT INTO checkpoints (name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [name, is_start_finish || 0, min_x, min_y, min_z, max_x + 1, max_y + 1, max_z + 1, order_index || 0], function(err) {
+  `, [name, is_start_finish || 0, min(min_x, max_x + 1), min(min_y, max_y + 1), min(min_z, max_z + 1), max(min_x, max_x + 1), max(min_y, max_y + 1), max(min_z, max_z + 1), order_index || 0], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -627,17 +635,18 @@ app.post('/api/player-team', (req, res) => {
 
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
+  //TODO: rework leaderboard to show players
   db.all(`
     SELECT t.id, t.name, t.color, t.lap_count, t.is_active,
-           COUNT(pt.player_uuid) as player_count,
+           COUNT(p.player_uuid) as player_count,
            COALESCE(MAX(player_checkpoint_counts.checkpoint_count), 0) as max_checkpoints
     FROM teams t
-    LEFT JOIN players pt ON t.id = pt.team_id
+    LEFT JOIN players p ON t.id = p.team_id
     LEFT JOIN (
       SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
       FROM player_checkpoints
       GROUP BY player_uuid
-    ) player_checkpoint_counts ON pt.player_uuid = player_checkpoint_counts.player_uuid
+    ) player_checkpoint_counts ON p.player_uuid = player_checkpoint_counts.player_uuid
     WHERE t.is_active = 1
     GROUP BY t.id
     ORDER BY t.lap_count DESC, max_checkpoints DESC, t.name
