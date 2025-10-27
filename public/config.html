@@ -283,11 +283,6 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>⚙️ Racing Configuration</h1>
-        <a href="/" class="dashboard-link">🏁 Dashboard</a>
-    </div>
-
     <div class="container">
         <nav class="nav">
             <button class="nav-btn active" onclick="showSection('teams')">Teams</button>
@@ -322,6 +317,10 @@
                         <div class="form-group">
                             <label for="player-uuid">Player UUID:</label>
                             <input type="text" id="player-uuid" name="player_uuid" required placeholder="Enter player UUID">
+                        </div>
+                        <div class="form-group">
+                            <label for="player-name">Player name:</label>
+                            <input type="text" id="player-name" name="player_name" required placeholder="Enter player name">
                         </div>
                         <div class="form-group">
                             <label for="assign-team">Team:</label>
@@ -480,10 +479,7 @@
                         <div class="item-details">
                             <div class="item-name">${team.name}</div>
                             <div class="item-meta">
-                                Players: ${team.player_count} | 
-                                Laps: ${team.lap_count} | 
-                                Max Checkpoints: ${team.max_checkpoints} | 
-                                Status: ${team.is_active ? 'Active' : 'Finished'}
+                                Players: ${team.player_count}
                             </div>
                         </div>
                     </div>
@@ -641,7 +637,8 @@
             const formData = new FormData(e.target);
             const assignment = {
                 player_uuid: formData.get('player_uuid'),
-                team_id: parseInt(formData.get('team_id'))
+                team_id: parseInt(formData.get('team_id')),
+                name: formData.get('player_name')
             };
             
             try {

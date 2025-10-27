@@ -33,6 +33,7 @@
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
             background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
             background-size: 400% 400%;
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: gradientShift 3s ease infinite;
@@ -89,7 +90,7 @@
             color: #fff;
         }
 
-        .team-bar {
+        .player-bar {
             display: flex;
             align-items: center;
             margin-bottom: 15px;
@@ -102,12 +103,12 @@
             overflow: hidden;
         }
 
-        .team-bar:hover {
+        .player-bar:hover {
             transform: translateX(10px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
 
-        .team-bar::before {
+        .player-bar::before {
             content: '';
             position: absolute;
             left: 0;
@@ -117,14 +118,14 @@
             background: var(--team-color);
         }
 
-        .team-info {
+        .player-info {
             flex: 1;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .team-name {
+        .player-name {
             font-size: 1.2rem;
             font-weight: bold;
             margin-right: 20px;
@@ -137,7 +138,7 @@
             text-shadow: 0 0 10px var(--team-color);
         }
 
-        .team-stats {
+        .player-stats {
             display: flex;
             gap: 20px;
             font-size: 0.9rem;
@@ -162,7 +163,7 @@
             opacity: 0.7;
         }
 
-        .no-teams {
+        .no-players {
             text-align: center;
             padding: 40px;
             font-size: 1.1rem;
@@ -214,112 +215,68 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Racing Dashboard</h1>
-        <p>Real-time team lap tracking</p>
-        <a href="/config" class="config-link">⚙️ Configuration</a>
-    </div>
-
     <div class="container">
         <div class="leaderboard">
-            <h2>Team Leaderboard</h2>
-            
-            <div class="race-status" id="race-status">
-                <span id="race-status-text">Loading race status...</span>
-            </div>
-
-            <div id="teams-container">
-                <div class="loading">Loading teams...</div>
+            <div id="players-container">
+                <div class="loading">Loading players...</div>
             </div>
         </div>
     </div>
 
     <script>
-        let teams = [];
+        let players = [];
         let updateInterval;
 
-        // Load teams data
-        async function loadTeams() {
+        // Load players data
+        async function loadPlayers() {
             try {
                 const response = await fetch('/api/leaderboard');
-                teams = await response.json();
-                updateTeamsDisplay();
-                updateRaceStatus();
+                players = await response.json();
+                updateDisplay();
             } catch (error) {
-                console.error('Error loading teams:', error);
-                document.getElementById('teams-container').innerHTML = 
-                    '<div class="no-teams">Error loading teams data</div>';
+                console.error('Error loading players:', error);
+                document.getElementById('players-container').innerHTML = 
+                    '<div class="no-players">Error loading players data</div>';
             }
         }
 
-        // Update teams display
-        function updateTeamsDisplay() {
-            const container = document.getElementById('teams-container');
+        // Update players display
+        function updateDisplay() {
+            const container = document.getElementById('players-container');
             
-            if (teams.length === 0) {
-                container.innerHTML = '<div class="no-teams">No active teams found</div>';
+            if (players.length === 0) {
+                container.innerHTML = '<div class="no-players">No active players found</div>';
                 return;
             }
 
-            // Sort teams by lap count (highest first)
-            const sortedTeams = [...teams].sort((a, b) => b.lap_count - a.lap_count);
-
-            container.innerHTML = sortedTeams.map((team, index) => `
-                <div class="team-bar" style="--team-color: ${team.color}">
+            container.innerHTML = players.map((team, index) => `
+                <div class="player-bar" style="--team-color: ${team.color}">
                     <div class="position-indicator">${index + 1}</div>
-                    <div class="team-info">
-                        <div class="team-name">${team.name}</div>
+                    <div class="player-info">
+                        <div class="player-name">${team.name}</div>
                         <div class="lap-count">${team.lap_count} laps</div>
-                        <div class="team-stats">
-                            <span>Players: ${team.player_count}</span>
-                            <span>Max Checkpoints: ${team.max_checkpoints}</span>
-                            <span>Status: ${team.is_active ? 'Active' : 'Finished'}</span>
+                        <div class="player-stats">
+                            <span>Checkpoints: ${team.checkpoint_count}</span>
                         </div>
                     </div>
                 </div>
             `).join('');
         }
 
-        // Update race status
-        function updateRaceStatus() {
-            const statusElement = document.getElementById('race-status');
-            const statusText = document.getElementById('race-status-text');
-            
-            if (teams.length === 0) {
-                statusText.textContent = 'No teams configured';
-                statusElement.className = 'race-status';
-                return;
-            }
-
-            const activeTeams = teams.filter(team => team.is_active);
-            const finishedTeams = teams.filter(team => !team.is_active);
-            
-            if (finishedTeams.length > 0) {
-                statusText.textContent = `Race in progress: ${activeTeams.length} active teams, ${finishedTeams.length} finished`;
-                statusElement.className = 'race-status active';
-            } else if (activeTeams.length > 0) {
-                statusText.textContent = `Race in progress: ${activeTeams.length} active teams`;
-                statusElement.className = 'race-status active';
-            } else {
-                statusText.textContent = 'Race finished - all teams completed 20 laps';
-                statusElement.className = 'race-status finished';
-            }
-        }
-
-        // Auto-refresh teams data
+        // Auto-refresh players data
         function startAutoRefresh() {
             if (updateInterval) {
                 clearInterval(updateInterval);
             }
             
             updateInterval = setInterval(() => {
-                loadTeams();
+                loadPlayers();
             }, 1000); // Refresh every second
         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            loadTeams();
+            loadPlayers();
             startAutoRefresh();
         });
 

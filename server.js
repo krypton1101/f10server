@@ -57,6 +57,7 @@ db.serialize(() => {
 
   db.run(`CREATE TABLE IF NOT EXISTS players (
     player_uuid TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
     team_id INTEGER NOT NULL,
     points_count INTEGER DEFAULT 0,
     current_lap_count INTEGER DEFAULT 0,
@@ -452,17 +453,11 @@ app.post('/api/config', (req, res) => {
 // Teams API
 app.get('/api/teams', (req, res) => {
   db.all(`
-    SELECT t.*, COUNT(p.player_uuid) as player_count,
-           COALESCE(MAX(player_checkpoint_counts.checkpoint_count), 0) as max_checkpoints
+    SELECT t.*, COUNT(p.player_uuid) as player_count
     FROM teams t
     LEFT JOIN players p ON t.id = p.team_id
-    LEFT JOIN (
-      SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
-      FROM player_checkpoints
-      GROUP BY player_uuid
-    ) player_checkpoint_counts ON p.player_uuid = player_checkpoint_counts.player_uuid
     GROUP BY t.id
-    ORDER BY t.lap_count DESC, max_checkpoints DESC, t.name
+    ORDER BY t.name
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -610,17 +605,17 @@ app.delete('/api/checkpoints/:id', (req, res) => {
 
 // Player-Team assignment API
 app.post('/api/player-team', (req, res) => {
-  const { player_uuid, team_id } = req.body;
+  const { player_uuid, team_id, name } = req.body;
   
-  if (!player_uuid || !team_id) {
+  if (!player_uuid || !team_id || !name) {
     res.status(400).json({ error: 'Player UUID and team ID are required' });
     return;
   }
   
   db.run(`
-    INSERT OR REPLACE INTO players (player_uuid, team_id)
-    VALUES (?, ?)
-  `, [player_uuid, team_id], function(err) {
+    INSERT OR REPLACE INTO players (player_uuid, team_id, name)
+    VALUES (?, ?, ?)
+  `, [player_uuid, team_id, name], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -635,21 +630,16 @@ app.post('/api/player-team', (req, res) => {
 
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
-  //TODO: rework leaderboard to show players
   db.all(`
-    SELECT t.id, t.name, t.color, t.lap_count, t.is_active,
-           COUNT(p.player_uuid) as player_count,
-           COALESCE(MAX(player_checkpoint_counts.checkpoint_count), 0) as max_checkpoints
-    FROM teams t
-    LEFT JOIN players p ON t.id = p.team_id
+    SELECT p.name, t.color, p.current_lap_count as lap_count, COALESCE(player_checkpoint_counts.checkpoint_count, 0) as checkpoint_count
+    FROM players p
+    LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN (
       SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
       FROM player_checkpoints
       GROUP BY player_uuid
     ) player_checkpoint_counts ON p.player_uuid = player_checkpoint_counts.player_uuid
-    WHERE t.is_active = 1
-    GROUP BY t.id
-    ORDER BY t.lap_count DESC, max_checkpoints DESC, t.name
+    ORDER BY lap_count DESC, checkpoint_count DESC, p.name
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
