@@ -160,6 +160,10 @@
         .btn-success {
             background: linear-gradient(135deg, #27ae60, #229954);
         }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
 
         .status {
             padding: 10px;
@@ -278,6 +282,8 @@
         
         #team-color {
             padding: 0px;
+            height: 40px;
+            width: 60px;
         }
 
     </style>
@@ -313,7 +319,7 @@
 
                 <h3>Assign Player to Team</h3>
                 <form id="player-team-form">
-                    <div class="form-row">
+                    <div class="form-row-3">
                         <div class="form-group">
                             <label for="player-uuid">Player UUID:</label>
                             <input type="text" id="player-uuid" name="player_uuid" required placeholder="Enter player UUID">
@@ -345,6 +351,7 @@
 
                 <h3>Add New Checkpoint</h3>
                 <form id="checkpoint-form">
+                    <input type="number" id="checkpoint-id" name="id" value="-1" hidden>
                     <div class="form-group">
                         <label for="checkpoint-name">Checkpoint Name:</label>
                         <input type="text" id="checkpoint-name" name="name" required>
@@ -361,7 +368,7 @@
                     </div>
                     
                     <h4>Checkpoint Coordinates (AABB)</h4>
-                    <div class="form-row">
+                    <div class="form-row-3">
                         <div class="form-group">
                             <label for="min-x">Min X:</label>
                             <input type="number" id="min-x" name="min_x" step="0.1" required>
@@ -376,7 +383,7 @@
                         </div>
                     </div>
                     
-                    <div class="form-row">
+                    <div class="form-row-3">
                         <div class="form-group">
                             <label for="max-x">Max X:</label>
                             <input type="number" id="max-x" name="max_x" step="0.1" required>
@@ -555,10 +562,28 @@
                         </div>
                     </div>
                     <div class="item-actions">
+                        <button class="btn btn-info" onclick="updateCheckpoint(${checkpoint.id}, '${checkpoint.name}', ${checkpoint.is_start_finish}, ${checkpoint.order_index}, ${checkpoint.min_x}, ${checkpoint.min_y}, ${checkpoint.min_z}, ${checkpoint.max_x}, ${checkpoint.max_y}, ${checkpoint.max_z})">Edit</button>
                         <button class="btn btn-danger" onclick="deleteCheckpoint(${checkpoint.id})">Delete</button>
                     </div>
                 </div>
             `).join('');
+        }
+        
+        function updateCheckpoint(checkpointId, name, isStartFinish, orderIndex, minX, minY, minZ, maxX, maxY, maxZ) {
+            document.getElementById('checkpoint-name').value = name;
+            if (isStartFinish) {
+                document.getElementById('is-start-finish').checked = true;
+            } else {
+                document.getElementById('is-start-finish').checked = false;
+            }
+            document.getElementById('order-index').value = orderIndex;
+            document.getElementById('min-x').value = minX;
+            document.getElementById('min-y').value = minY;
+            document.getElementById('min-z').value = minZ;
+            document.getElementById('max-x').value = maxX;
+            document.getElementById('max-y').value = maxY;
+            document.getElementById('max-z').value = maxZ;
+            document.getElementById('checkpoint-id').value = checkpointId;
         }
 
         async function deleteCheckpoint(checkpointId) {
@@ -666,6 +691,7 @@
             e.preventDefault();
             
             const formData = new FormData(e.target);
+            const id = formData.get('id');
             const checkpoint = {
                 name: formData.get('name'),
                 is_start_finish: formData.get('is_start_finish') === 'on' ? 1 : 0,
@@ -679,11 +705,21 @@
             };
             
             try {
-                const response = await fetch('/api/checkpoints', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(checkpoint)
-                });
+                let response;
+                if (id == -1) {
+                    response = await fetch('/api/checkpoints', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(checkpoint)
+                    });
+                }
+                else {
+                    response = await fetch('/api/checkpoints/' + id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(checkpoint)
+                    });
+                }
                 
                 const result = await response.json();
                 

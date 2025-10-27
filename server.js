@@ -555,7 +555,7 @@ app.post('/api/checkpoints', (req, res) => {
   });
 });
 
-app.post('/api/checkpoints/:id', (req, res) => {
+app.put('/api/checkpoints/:id', (req, res) => {
   const checkpointId = req.params.id;
   const { name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index } = req.body;
   
