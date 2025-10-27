@@ -447,7 +447,6 @@ app.get('/api/players/:id/details', (req, res) => {
       return;
     }
     if (!row) {
-      console.log(row);
       res.status(404).json({ error: 'Player not found' });
       return;
     }
