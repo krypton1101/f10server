@@ -135,4 +135,13 @@ describe('lineSegmentIntersectsAABB function', () => {
     
     expect(lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax)).toBe(true);
   });
+
+  test('should return true if intersects in between positions 4', () => {
+    const p1 = { x: -2.35, y: 88.41, z: -72.09 };
+    const p2 = { x: -3.67, y: 81.75, z: -47.79 };
+    const aabbMin = { x: -6, y: 81, z: -58 };
+    const aabbMax = { x: 0, y: 87, z: -57 }
+    
+    expect(lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax)).toBe(true);
+  });
 });

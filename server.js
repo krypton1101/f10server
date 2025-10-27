@@ -88,21 +88,23 @@ function lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax) {
         dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) {// If dot already in AABB
       return true;
     }
-    else if ((xor(dir.x < 0, !(dot.x >= aabbMin.x)) || xor(dir.x > 0, !(dot.x <= aabbMax.x)) || dir.x == 0) &&
-            (xor(dir.y < 0, !(dot.y >= aabbMin.y)) || xor(dir.y > 0, !(dot.y <= aabbMax.y)) || dir.y == 0) &&
-            (xor(dir.z < 0, !(dot.z >= aabbMin.z)) || xor(dir.z > 0, !(dot.z <= aabbMax.z)) || dir.z == 0)) { // If dot will move towards AABB
+    else if ((xor(dir.x < 0, dot.x < aabbMin.x) || xor(dir.x > 0, dot.x > aabbMax.x) || dir.x == 0) &&
+            (xor(dir.y < 0, dot.y < aabbMin.y) || xor(dir.y > 0, dot.y > aabbMax.y) || dir.y == 0) &&
+            (xor(dir.z < 0, dot.z < aabbMin.z) || xor(dir.z > 0, dot.z > aabbMax.z) || dir.z == 0)) { // If dot will move towards AABB
       dir = { x: dir.x/2, y: dir.y/2, z: dir.z/2 };
       dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
       continue;
     }
-    else if (xor(dir.x < 0, !(dot.x >= aabbMin.x)) || xor(dir.x > 0, !(dot.x <= aabbMax.x)) ||
-            xor(dir.y < 0, !(dot.y >= aabbMin.y)) || xor(dir.y > 0, !(dot.y <= aabbMax.y)) ||
-            xor(dir.z < 0, !(dot.z >= aabbMin.z)) || xor(dir.z > 0, !(dot.z <= aabbMax.z))) // If mirrored dir will not move towards AABB
-      return false;
-    else if ( i > 0) { // Can't mirror on first iteration
+    else if ( i > 0 ) { // Can't mirror on first iteration
       dir = { x: -dir.x/2, y: -dir.y/2, z: -dir.z/2 };
       dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
-      continue;
+      if ((xor(dir.x < 0, dot.x < aabbMin.x) || xor(dir.x > 0, dot.x > aabbMax.x) || dir.x == 0) &&
+            (xor(dir.y < 0, dot.y < aabbMin.y) || xor(dir.y > 0, dot.y > aabbMax.y) || dir.y == 0) &&
+            (xor(dir.z < 0, dot.z < aabbMin.z) || xor(dir.z > 0, dot.z > aabbMax.z) || dir.z == 0)) // If mirrored dir will not move towards AABB
+        continue;
+      else {
+        return false;
+      }
     }
     else {
       return false;
@@ -445,6 +447,7 @@ app.get('/api/players/:id/details', (req, res) => {
       return;
     }
     if (!row) {
+      console.log(row);
       res.status(404).json({ error: 'Player not found' });
       return;
     }
@@ -551,10 +554,9 @@ app.put('/api/players/:id', (req, res) => {
   }
   
   db.run(`
-    UPDATE players
-    SET name = ?, team_id = ?, current_lap_count = ?, score = ?
-    WHERE player_uuid = ?
-  `, [name, team_id, current_lap_count, score, player_UUID], function(err) {
+    INSERT OR REPLACE INTO players (player_uuid, name, team_id, current_lap_count, score)
+    VALUES (?, ?, ?, ?, ?)
+  `, [player_UUID, name, team_id, current_lap_count || 0, score || 0], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
