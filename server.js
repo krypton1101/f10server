@@ -227,6 +227,16 @@ const wss = new WebSocket.Server({ port: WS_PORT });
 
 wss.on('connection', (ws, req) => {
   console.log('New WebSocket connection established');
+  db.all(`
+    SELECT * FROM checkpoints
+    ORDER BY order_index, name
+  `, (err, rows) => {
+    if (err) {
+      console.error('Error getting checkpoints on sending:', err);
+      return;
+    }
+    ws.send(JSON.stringify(rows));
+  });
   
   ws.on('message', (data) => {
     try {
