@@ -290,6 +290,9 @@
             
             <div class="data-section">
                 <h2>Position History</h2>
+                <div id="positions-export-container" style="margin-bottom: 15px;">
+                    <button id="export-positions-btn" class="btn" style="display: none;">Export to JSON</button>
+                </div>
                 <div id="positions-table-container">
                     <div class="loading">Loading position history...</div>
                 </div>
@@ -428,11 +431,17 @@
         // Update positions table
         function updatePositionsTable(positions) {
             const container = document.getElementById('positions-table-container');
+            const exportBtn = document.getElementById('export-positions-btn');
             
             if (positions.length === 0) {
                 container.innerHTML = '<div class="no-data">No position history found</div>';
+                exportBtn.style.display = 'none';
                 return;
             }
+
+            // Show export button
+            exportBtn.style.display = 'inline-block';
+            exportBtn.onclick = () => exportPositionsToJSON(positions);
 
             container.innerHTML = `
                 <table class="data-table">
@@ -614,6 +623,39 @@
             // Set up form submission
             document.getElementById('player-form').addEventListener('submit', updatePlayerDetails);
         });
+
+        // Export positions to JSON file
+        function exportPositionsToJSON(positions) {
+            try {
+                // Get player name for filename
+                const playerName = document.getElementById('player-name').value || 'player';
+                const fileName = `${playerName}_positions_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+                
+                // Create JSON data
+                const jsonData = JSON.stringify(positions, null, 2);
+                
+                // Create blob and download
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                showStatus('Positions exported successfully!', 'success');
+            } catch (error) {
+                console.error('Error exporting positions:', error);
+                showStatus('Error exporting positions', 'error');
+            }
+        }
     </script>
 </body>
 </html>
