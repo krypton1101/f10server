@@ -83,7 +83,7 @@ function lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax) {
     return true;
   }
 
-  for (let i = 0; i<30; i++) {
+  for (let i = 0; i<8; i++) {
     if (dot.x >= aabbMin.x && dot.y >= aabbMin.y && dot.z >= aabbMin.z &&
         dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) {// If dot already in AABB
       return true;
@@ -462,7 +462,6 @@ app.get('/api/players/:id/positions', (req, res) => {
     FROM player_positions
     WHERE player_uuid = ?
     ORDER BY created_at DESC
-    LIMIT 100
   `, [player_UUID], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
