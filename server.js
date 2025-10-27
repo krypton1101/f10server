@@ -572,30 +572,6 @@ app.put('/api/players/:id', (req, res) => {
   });
 });
 
-// Configuration endpoint
-app.get('/api/config', (req, res) => {
-  res.json({
-    websocketPort: WS_PORT,
-    httpPort: PORT,
-    maxPlayers: 100,
-    updateInterval: 1000
-  });
-});
-
-// Update configuration
-app.post('/api/config', (req, res) => {
-  const { maxPlayers, updateInterval } = req.body;
-  
-  // Here you could store configuration in database or file
-  console.log('Configuration updated:', { maxPlayers, updateInterval });
-  
-  res.json({ 
-    status: 'success', 
-    message: 'Configuration updated',
-    config: { maxPlayers, updateInterval }
-  });
-});
-
 // Teams API
 app.get('/api/teams', (req, res) => {
   db.all(`

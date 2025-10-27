@@ -293,7 +293,6 @@
         <nav class="nav">
             <button class="nav-btn active" onclick="showSection('teams')">Teams</button>
             <button class="nav-btn" onclick="showSection('checkpoints')">Checkpoints</button>
-            <button class="nav-btn" onclick="showSection('settings')">Settings</button>
         </nav>
 
         <div class="content">
@@ -371,30 +370,30 @@
                     <div class="form-row-3">
                         <div class="form-group">
                             <label for="min-x">Min X:</label>
-                            <input type="number" id="min-x" name="min_x" step="0.1" required>
+                            <input type="number" id="min-x" name="min_x" step="1" required>
                         </div>
                         <div class="form-group">
                             <label for="min-y">Min Y:</label>
-                            <input type="number" id="min-y" name="min_y" step="0.1" required>
+                            <input type="number" id="min-y" name="min_y" step="1" required>
                         </div>
                         <div class="form-group">
                             <label for="min-z">Min Z:</label>
-                            <input type="number" id="min-z" name="min_z" step="0.1" required>
+                            <input type="number" id="min-z" name="min_z" step="1" required>
                         </div>
                     </div>
                     
                     <div class="form-row-3">
                         <div class="form-group">
                             <label for="max-x">Max X:</label>
-                            <input type="number" id="max-x" name="max_x" step="0.1" required>
+                            <input type="number" id="max-x" name="max_x" step="1" required>
                         </div>
                         <div class="form-group">
                             <label for="max-y">Max Y:</label>
-                            <input type="number" id="max-y" name="max_y" step="0.1" required>
+                            <input type="number" id="max-y" name="max_y" step="1" required>
                         </div>
                         <div class="form-group">
                             <label for="max-z">Max Z:</label>
-                            <input type="number" id="max-z" name="max_z" step="0.1" required>
+                            <input type="number" id="max-z" name="max_z" step="1" required>
                         </div>
                     </div>
                     
@@ -405,36 +404,6 @@
                 <div id="checkpoints-list" class="list-container">
                     <div class="loading">Loading checkpoints...</div>
                 </div>
-            </div>
-
-            <div id="settings-section" class="section">
-                <h2>General Settings</h2>
-                
-                <div id="settings-status" class="status" style="display: none;"></div>
-
-                <form id="settings-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="maxPlayers">Maximum Players to Track:</label>
-                            <input type="number" id="maxPlayers" name="maxPlayers" min="1" max="1000" value="100">
-                        </div>
-                        <div class="form-group">
-                            <label for="updateInterval">Update Interval (ms):</label>
-                            <input type="number" id="updateInterval" name="updateInterval" min="100" max="10000" value="1000">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="websocketPort">WebSocket Port:</label>
-                            <input type="number" id="websocketPort" name="websocketPort" min="1024" max="65535" value="8080" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label for="httpPort">HTTP Port:</label>
-                            <input type="number" id="httpPort" name="httpPort" min="1024" max="65535" value="3000" readonly>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn">Update Settings</button>
-                </form>
             </div>
         </div>
     </div>
@@ -580,9 +549,9 @@
             document.getElementById('min-x').value = minX;
             document.getElementById('min-y').value = minY;
             document.getElementById('min-z').value = minZ;
-            document.getElementById('max-x').value = maxX;
-            document.getElementById('max-y').value = maxY;
-            document.getElementById('max-z').value = maxZ;
+            document.getElementById('max-x').value = maxX-1;
+            document.getElementById('max-y').value = maxY-1;
+            document.getElementById('max-z').value = maxZ-1;
             document.getElementById('checkpoint-id').value = checkpointId;
         }
 
@@ -733,35 +702,6 @@
             } catch (error) {
                 console.error('Error creating checkpoint:', error);
                 showStatus('checkpoint-status', 'Error creating checkpoint', 'error');
-            }
-        });
-
-        document.getElementById('settings-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const config = {
-                maxPlayers: parseInt(formData.get('maxPlayers')),
-                updateInterval: parseInt(formData.get('updateInterval'))
-            };
-            
-            try {
-                const response = await fetch('/api/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(config)
-                });
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus('settings-status', 'Settings updated successfully!', 'success');
-                } else {
-                    showStatus('settings-status', 'Error updating settings', 'error');
-                }
-            } catch (error) {
-                console.error('Error updating settings:', error);
-                showStatus('settings-status', 'Error updating settings', 'error');
             }
         });
 
