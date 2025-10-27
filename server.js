@@ -59,7 +59,6 @@ db.serialize(() => {
     player_uuid TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     team_id INTEGER NOT NULL,
-    points_count INTEGER DEFAULT 0,
     current_lap_count INTEGER DEFAULT 0,
     score INTEGER DEFAULT 0,
     FOREIGN KEY (team_id) REFERENCES teams (id)
@@ -72,17 +71,6 @@ db.serialize(() => {
     PRIMARY KEY (player_uuid, checkpoint_id),
     FOREIGN KEY (player_uuid) REFERENCES players (player_uuid),
     FOREIGN KEY (checkpoint_id) REFERENCES checkpoints (id)
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS player_positions_history (
-    player_uuid TEXT PRIMARY KEY,
-    prev_x REAL,
-    prev_y REAL,
-    prev_z REAL,
-    curr_x REAL,
-    curr_y REAL,
-    curr_z REAL,
-    last_update DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 });
 
@@ -388,13 +376,20 @@ app.get('/config', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'config.html'));
 });
 
-// Get all players
+// Get all players with team information
 app.get('/api/players', (req, res) => {
   db.all(`
-    SELECT player_uuid, max(timestamp), x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
-    FROM player_positions 
-    GROUP BY player_uuid
-    ORDER BY created_at DESC 
+    SELECT pp.player_uuid, p.name as player_name, t.name as team_name, t.color as team_color,
+           pp.x, pp.y, pp.z, pp.velocity_x, pp.velocity_y, pp.velocity_z, pp.yaw, pp.pitch, pp.created_at
+    FROM player_positions pp
+    LEFT JOIN players p ON pp.player_uuid = p.player_uuid
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE pp.timestamp = (
+        SELECT MAX(timestamp)
+        FROM player_positions
+        WHERE player_uuid = pp.player_uuid
+    )
+    ORDER BY pp.created_at DESC
     LIMIT 100
   `, (err, rows) => {
     if (err) {
@@ -405,13 +400,13 @@ app.get('/api/players', (req, res) => {
   });
 });
 
-// Get player by ID
+// Get player by ID (latest position)
 app.get('/api/players/:id', (req, res) => {
   const player_UUID = req.params.id;
   db.get(`
-    SELECT * FROM players 
-    WHERE player_uuid = ? 
-    ORDER BY created_at DESC 
+    SELECT * FROM player_positions
+    WHERE player_uuid = ?
+    ORDER BY created_at DESC
     LIMIT 1
   `, [player_UUID], (err, row) => {
     if (err) {
@@ -423,6 +418,147 @@ app.get('/api/players/:id', (req, res) => {
       return;
     }
     res.json(row);
+  });
+});
+
+// Get player details with team information
+app.get('/api/players/:id/details', (req, res) => {
+  const player_UUID = req.params.id;
+  db.get(`
+    SELECT p.*, t.name as team_name, t.color as team_color
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE p.player_uuid = ?
+  `, [player_UUID], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!row) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    res.json(row);
+  });
+});
+
+// Get all positions for a specific player
+app.get('/api/players/:id/positions', (req, res) => {
+  const player_UUID = req.params.id;
+  db.all(`
+    SELECT id, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
+    FROM player_positions
+    WHERE player_uuid = ?
+    ORDER BY created_at DESC
+    LIMIT 100
+  `, [player_UUID], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Get all checkpoints collected by a specific player
+app.get('/api/players/:id/checkpoints', (req, res) => {
+  const player_UUID = req.params.id;
+  db.all(`
+    SELECT pc.checkpoint_id, c.name as checkpoint_name, pc.collected_at
+    FROM player_checkpoints pc
+    JOIN checkpoints c ON pc.checkpoint_id = c.id
+    WHERE pc.player_uuid = ?
+    ORDER BY pc.collected_at DESC
+  `, [player_UUID], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Delete a specific position record
+app.delete('/api/players/:id/positions/:positionId', (req, res) => {
+  const player_UUID = req.params.id;
+  const positionId = req.params.positionId;
+  
+  db.run(`
+    DELETE FROM player_positions
+    WHERE id = ? AND player_uuid = ?
+  `, [positionId, player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Position record not found' });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Position record deleted successfully'
+    });
+  });
+});
+
+// Delete a specific checkpoint record
+app.delete('/api/players/:id/checkpoints/:checkpointId', (req, res) => {
+  const player_UUID = req.params.id;
+  const checkpointId = req.params.checkpointId;
+  
+  db.run(`
+    DELETE FROM player_checkpoints
+    WHERE player_uuid = ? AND checkpoint_id = ?
+  `, [player_UUID, checkpointId], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Checkpoint record not found' });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Checkpoint record deleted successfully'
+    });
+  });
+});
+
+// Update player details
+app.put('/api/players/:id', (req, res) => {
+  const player_UUID = req.params.id;
+  const { name, team_id, current_lap_count, score } = req.body;
+  
+  if (!name || !team_id) {
+    res.status(400).json({ error: 'Name and team_id are required' });
+    return;
+  }
+  
+  db.run(`
+    UPDATE players
+    SET name = ?, team_id = ?, current_lap_count = ?, score = ?
+    WHERE player_uuid = ?
+  `, [name, team_id, current_lap_count, score, player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Player updated successfully'
+    });
   });
 });
 

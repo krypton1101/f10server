@@ -115,7 +115,7 @@
 
         .player-item {
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px;
             border-bottom: 1px solid #eee;
@@ -133,7 +133,7 @@
 
         .player-header {
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px;
             background: #f8f9fa;
@@ -296,11 +296,11 @@
 
                 <div class="players-list">
                     <div class="player-header">
+                        <div>Player Name</div>
+                        <div>Team</div>
                         <div>Player UUID</div>
-                        <div>Position (x, y, z)</div>
-                        <div>Velocity (x, y, z)</div>
-                        <div>Rotation (yaw, pitch)</div>
-                        <div>Timestamp</div>
+                        <div>Last Position</div>
+                        <div>Last Update</div>
                     </div>
                     <div id="players-container">
                         <div class="loading">Loading players...</div>
@@ -353,11 +353,19 @@
 
             container.innerHTML = players.map(player => `
                 <div class="player-item">
-                    <div class="player-id"><a class="copy-to-clipboard" onclick="copyToClipboard('${player.player_uuid}')">${player.player_uuid}</a></div>
+                    <div class="player-name">
+                        <a href="player_detail.html?uuid=${player.player_uuid}" style="color: #333; text-decoration: none; font-weight: bold;">
+                            ${player.player_name || 'Unknown Player'}
+                        </a>
+                    </div>
+                    <div class="team-name" style="color: ${player.team_color || '#666'}; font-weight: bold;">
+                        ${player.team_name || 'No Team'}
+                    </div>
+                    <div class="player-id">
+                        <a class="copy-to-clipboard" onclick="copyToClipboard('${player.player_uuid}')">${player.player_uuid}</a>
+                    </div>
                     <div class="position">(${player.x.toFixed(2)}, ${player.y.toFixed(2)}, ${player.z.toFixed(2)})</div>
-                    <div class="velocity">(${player.velocity_x.toFixed(2)}, ${player.velocity_y.toFixed(2)}, ${player.velocity_z.toFixed(2)})</div>
-                    <div class="rotation">(${player.yaw.toFixed(1)}°, ${player.pitch.toFixed(1)}°)</div>
-                    <div class="timestamp">${new Date(player.created_at).toISOString()}</div>
+                    <div class="timestamp">${new Date(player.created_at).toLocaleString()}</div>
                 </div>
             `).join('');
         }   

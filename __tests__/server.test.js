@@ -126,4 +126,13 @@ describe('lineSegmentIntersectsAABB function', () => {
     
     expect(lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax)).toBe(true);
   });
+
+  test('should return true if intersects in between positions diagonal', () => {
+    const p1 = { x: 0, y: 0, z: 0 };
+    const p2 = { x: 10, y: 10, z: 10 };
+    const aabbMin = { x: 5, y: 5, z: 5 };
+    const aabbMax = { x: 6, y: 6, z: 6 };
+    
+    expect(lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax)).toBe(true);
+  });
 });
