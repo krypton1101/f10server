@@ -753,7 +753,7 @@ app.post('/api/player-team', (req, res) => {
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
   db.all(`
-    SELECT p.name, t.color, p.current_lap_count as lap_count, COALESCE(player_checkpoint_counts.checkpoint_count, 0) as checkpoint_count
+    SELECT p.player_uuid, p.name, t.color, p.current_lap_count as lap_count, COALESCE(player_checkpoint_counts.checkpoint_count, 0) as checkpoint_count
     FROM players p
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN (

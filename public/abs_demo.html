@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absolute Positioning Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        #element1 {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            background-color: #ff6b6baa;
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease-out;
+        }
+
+        #element2 {
+            position: absolute;
+            top: 150px;
+            left: 200px;
+            background-color: #4ecdc4aa;
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #moveButton {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 30px;
+            background-color: #45b7d1;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        #moveButton:hover {
+            background-color: #35a7c1;
+        }
+
+        .instructions {
+            margin-top: 300px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="element1">Element 1</div>
+    <div id="element2">Element 2</div>
+    <button id="moveButton">Move Elements</button>
+    
+    <div class="instructions">
+        <h2>How it works:</h2>
+        <p>This demo shows how to move elements with absolute positioning using JavaScript.</p>
+        <p>Click the "Move Elements" button to change the positions of the two colored boxes.</p>
+        <p>Each click will move the elements to new random positions on the screen.</p>
+    </div>
+
+    <script>
+        const element1 = document.getElementById('element1');
+        const element2 = document.getElementById('element2');
+        const moveButton = document.getElementById('moveButton');
+
+        // Function to generate random position within viewport
+        function getRandomPosition() {
+            // Get viewport dimensions
+            const maxX = window.innerWidth - 100;
+            const maxY = window.innerHeight - 100;
+            
+            // Generate random coordinates
+            const x = Math.floor(Math.random() * maxX);
+            const y = Math.floor(Math.random() * maxY);
+            
+            return { x, y };
+        }
+
+        // Function to move elements to new positions
+        function moveElements() {
+            // Get new random positions
+            const pos1 = getRandomPosition();
+            const pos2 = getRandomPosition();
+            
+            // Apply new positions
+            element1.style.left = pos1.x + 'px';
+            element1.style.top = pos1.y + 'px';
+            
+            element2.style.left = pos2.x + 'px';
+            element2.style.top = pos2.y + 'px';
+        }
+
+        // Add click event to button
+        moveButton.addEventListener('click', moveElements);
+
+        // Add click events to elements to also move them
+        element1.addEventListener('click', moveElements);
+        element2.addEventListener('click', moveElements);
+    </script>
+</body>
+</html>

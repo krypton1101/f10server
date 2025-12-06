@@ -5,227 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft Racing Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            min-height: 100vh;
-            color: white;
-            overflow-x: hidden;
-        }
-
-        .header {
-            text-align: center;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
-            background-size: 400% 400%;
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientShift 3s ease infinite;
-        }
-
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.8;
-        }
-
-        .config-link {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-
-        .config-link:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .leaderboard {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        }
-
-        .leaderboard h2 {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 1.8rem;
-            color: #fff;
-        }
-
-        .player-bar {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 15px 20px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-            cursor: pointer;
+        #players-container {
             position: relative;
-            overflow: hidden;
         }
-
-        .player-bar:hover {
-            transform: translateX(10px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-
-        .player-bar::before {
-            content: '';
+        #players-container li {
             position: absolute;
-            left: 0;
             top: 0;
-            height: 100%;
-            width: 5px;
-            background: var(--team-color);
+            left: 0;
+            transition: all 0.3s ease-out;
         }
-
-        .player-info {
-            flex: 1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .player-name {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-right: 20px;
-        }
-
-        .lap-count {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--team-color);
-            text-shadow: 0 0 10px var(--team-color);
-        }
-
-        .player-stats {
-            display: flex;
-            gap: 20px;
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-
-        .position-indicator {
-            position: absolute;
-            left: -30px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #ffd700;
-            text-shadow: 0 0 10px #ffd700;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            font-size: 1.2rem;
-            opacity: 0.7;
-        }
-
-        .no-players {
-            text-align: center;
-            padding: 40px;
-            font-size: 1.1rem;
-            opacity: 0.7;
-            font-style: italic;
-        }
-
-        .race-status {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-
-        .race-status.active {
-            background: rgba(76, 175, 80, 0.2);
-            border: 1px solid rgba(76, 175, 80, 0.5);
-        }
-
-        .race-status.finished {
-            background: rgba(255, 193, 7, 0.2);
-            border: 1px solid rgba(255, 193, 7, 0.5);
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            .team-bar {
-                padding: 12px 15px;
-            }
-            
-            .team-name {
-                font-size: 1rem;
-            }
-            
-            .lap-count {
-                font-size: 1.2rem;
-            }
-            
-            .position-indicator {
-                left: -25px;
-                font-size: 1.2rem;
-            }
+        #players-container:nth-child(n+21) {
+            display: none;
         }
     </style>
 </head>
 <body>
+    <!-- Add jQuery library -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
     <div class="container">
         <div class="leaderboard">
-            <div id="players-container">
+            <ul id="players-container">
                 <div class="loading">Loading players...</div>
-            </div>
+            </ul>
         </div>
     </div>
 
     <script>
         let players = [];
         let updateInterval;
+        
+        // Create list styles
+        function createListStyles(rulePattern, rows, cols) {
+            var index = 0;
+            for (var rowIndex = 0; rowIndex < rows; rowIndex++) {
+                for (var colIndex = 0; colIndex < cols; colIndex++) {
+                    var x = (colIndex * 100) + "%",
+                        y = (rowIndex * 100) + "%";
+                }
+            }
+        }
 
         // Load players data
         async function loadPlayers() {
@@ -249,18 +68,78 @@
                 return;
             }
 
-            container.innerHTML = players.map((team, index) => `
-                <div class="player-bar" style="--team-color: ${team.color}">
-                    <div class="position-indicator">${index + 1}</div>
-                    <div class="player-info">
-                        <div class="player-name">${team.name}</div>
-                        <div class="lap-count">${team.lap_count} laps</div>
-                        <div class="player-stats">
-                            <span>Checkpoints: ${team.checkpoint_count}</span>
+            // Get existing player elements
+            const existingElements = {};
+            const elementsToRemove = [];
+            for (let i = 0; i < container.children.length; i++) {
+                const child = container.children[i];
+                if (child.id && child.classList.contains('player-bar')) {
+                    existingElements[child.id] = child;
+                } else if (!child.classList.contains('player-bar')) {
+                    // Mark non-player elements for removal (like loading div)
+                    elementsToRemove.push(child);
+                }
+            }
+            
+            // Remove non-player elements
+            elementsToRemove.forEach(el => el.remove());
+            
+            // Create or update player elements
+            players.forEach((p, index) => {
+                let playerElement;
+                if (existingElements[p.player_uuid]) {
+                    // Use existing element
+                    playerElement = existingElements[p.player_uuid];
+                    delete existingElements[p.player_uuid]; // Remove from existing elements to track which ones to delete
+                } else {
+                    // Create new element
+                    playerElement = document.createElement('li');
+                    playerElement.className = 'player-bar';
+                    playerElement.id = `uuid-${p.player_uuid}`;
+                    // Initialize content structure
+                    playerElement.innerHTML = `
+                        <div class="position-indicator"></div>
+                        <div class="player-info">
+                            <div class="player-name"></div>
+                            <div class="lap-count"></div>
+                            <div class="player-stats">
+                                <span></span>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            `).join('');
+                    `;
+                }
+                
+                // Update element content and styles
+                playerElement.style.backgroundColor = p.color;
+                
+                // Update child elements
+                playerElement.querySelector('.position-indicator').textContent = index + 1;
+                playerElement.querySelector('.player-name').textContent = p.name;
+                playerElement.querySelector('.lap-count').textContent = `${p.lap_count} laps`;
+                playerElement.querySelector('.player-stats span').textContent = `Checkpoints: ${p.checkpoint_count}`;
+                
+                // Apply position class for CSS grid positioning
+                // Remove any existing position classes
+                const classList = playerElement.classList;
+                for (let i = classList.length - 1; i >= 0; i--) {
+                    if (classList[i].startsWith('pos-')) {
+                        classList.remove(classList[i]);
+                    }
+                }
+                // Add the correct position class
+                playerElement.classList.add(`pos-${index + 1}`);
+                
+                // Add to container if it's a new element
+                if (!playerElement.parentNode) {
+                    container.appendChild(playerElement);
+                }
+            });
+            
+            // Remove elements for players that no longer exist
+            Object.values(existingElements).forEach(el => el.remove());
+            
+            // Release the snapshot to allow elements to transition to new positions
+            $('#players-container').releaseSnapshot();
         }
 
         // Auto-refresh players data
@@ -276,6 +155,7 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            createListStyles('.pos-{0}', 20, 1);
             loadPlayers();
             startAutoRefresh();
         });
