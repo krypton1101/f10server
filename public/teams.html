@@ -290,11 +290,6 @@
 </head>
 <body>
     <div class="container">
-        <nav class="nav">
-            <button class="nav-btn active" onclick="showSection('teams')">Teams</button>
-            <button class="nav-btn" onclick="showSection('checkpoints')">Checkpoints</button>
-        </nav>
-
         <div class="content">
             <div id="teams-section" class="section active">
                 <h2>Team Management</h2>
@@ -342,90 +337,10 @@
                     <div class="loading">Loading teams...</div>
                 </div>
             </div>
-
-            <div id="checkpoints-section" class="section">
-                <h2>Checkpoint Management</h2>
-                
-                <div id="checkpoint-status" class="status" style="display: none;"></div>
-
-                <h3>Add New Checkpoint</h3>
-                <form id="checkpoint-form">
-                    <input type="number" id="checkpoint-id" name="id" value="-1" hidden>
-                    <div class="form-group">
-                        <label for="checkpoint-name">Checkpoint Name:</label>
-                        <input type="text" id="checkpoint-name" name="name" required>
-                    </div>
-                    
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="is-start-finish" name="is_start_finish">
-                        <label for="is-start-finish">Start/Finish Checkpoint</label>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="order-index">Order Index:</label>
-                        <input type="number" id="order-index" name="order_index" value="0" min="0">
-                    </div>
-                    
-                    <h4>Checkpoint Coordinates (AABB)</h4>
-                    <div class="form-row-3">
-                        <div class="form-group">
-                            <label for="min-x">Min X:</label>
-                            <input type="number" id="min-x" name="min_x" step="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="min-y">Min Y:</label>
-                            <input type="number" id="min-y" name="min_y" step="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="min-z">Min Z:</label>
-                            <input type="number" id="min-z" name="min_z" step="1" required>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row-3">
-                        <div class="form-group">
-                            <label for="max-x">Max X:</label>
-                            <input type="number" id="max-x" name="max_x" step="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="max-y">Max Y:</label>
-                            <input type="number" id="max-y" name="max_y" step="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="max-z">Max Z:</label>
-                            <input type="number" id="max-z" name="max_z" step="1" required>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-success">Add Checkpoint</button>
-                </form>
-
-                <h3>Existing Checkpoints</h3>
-                <div id="checkpoints-list" class="list-container">
-                    <div class="loading">Loading checkpoints...</div>
-                </div>
-            </div>
         </div>
     </div>
 
     <script>
-        // Navigation
-        function showSection(section) {
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-            document.getElementById(`${section}-section`).classList.add('active');
-            
-            if (section === 'teams') {
-                loadTeams();
-            } else if (section === 'checkpoints') {
-                loadCheckpoints();
-            } else if (section === 'settings') {
-                loadSettings();
-            }
-        }
-
         // Teams management
         async function loadTeams() {
             try {
@@ -435,7 +350,7 @@
                 updateTeamSelect(teams);
             } catch (error) {
                 console.error('Error loading teams:', error);
-                document.getElementById('teams-list').innerHTML = 
+                document.getElementById('teams-list').innerHTML =
                     '<div class="no-data">Error loading teams</div>';
             }
         }
@@ -491,105 +406,6 @@
             } catch (error) {
                 console.error('Error deleting team:', error);
                 showStatus('team-status', 'Error deleting team', 'error');
-            }
-        }
-
-        // Checkpoints management
-        async function loadCheckpoints() {
-            try {
-                const response = await fetch('/api/checkpoints');
-                const checkpoints = await response.json();
-                updateCheckpointsDisplay(checkpoints);
-            } catch (error) {
-                console.error('Error loading checkpoints:', error);
-                document.getElementById('checkpoints-list').innerHTML = 
-                    '<div class="no-data">Error loading checkpoints</div>';
-            }
-        }
-
-        function updateCheckpointsDisplay(checkpoints) {
-            const container = document.getElementById('checkpoints-list');
-            
-            if (checkpoints.length === 0) {
-                container.innerHTML = '<div class="no-data">No checkpoints found</div>';
-                return;
-            }
-
-            container.innerHTML = checkpoints.map(checkpoint => `
-                <div class="list-item">
-                    <div class="item-info">
-                        <div class="item-details">
-                            <div class="item-name">
-                                ${checkpoint.name}
-                                ${checkpoint.is_start_finish ? ' (Start/Finish)' : ''}
-                            </div>
-                            <div class="item-meta">
-                                Order: ${checkpoint.order_index} | 
-                                Min: (${checkpoint.min_x}, ${checkpoint.min_y}, ${checkpoint.min_z}) | 
-                                Max: (${checkpoint.max_x}, ${checkpoint.max_y}, ${checkpoint.max_z})
-                            </div>
-                        </div>
-                    </div>
-                    <div class="item-actions">
-                        <button class="btn btn-info" onclick="updateCheckpoint(${checkpoint.id}, '${checkpoint.name}', ${checkpoint.is_start_finish}, ${checkpoint.order_index}, ${checkpoint.min_x}, ${checkpoint.min_y}, ${checkpoint.min_z}, ${checkpoint.max_x}, ${checkpoint.max_y}, ${checkpoint.max_z})">Edit</button>
-                        <button class="btn btn-danger" onclick="deleteCheckpoint(${checkpoint.id})">Delete</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        function updateCheckpoint(checkpointId, name, isStartFinish, orderIndex, minX, minY, minZ, maxX, maxY, maxZ) {
-            document.getElementById('checkpoint-name').value = name;
-            if (isStartFinish) {
-                document.getElementById('is-start-finish').checked = true;
-            } else {
-                document.getElementById('is-start-finish').checked = false;
-            }
-            document.getElementById('order-index').value = orderIndex;
-            document.getElementById('min-x').value = minX;
-            document.getElementById('min-y').value = minY;
-            document.getElementById('min-z').value = minZ;
-            document.getElementById('max-x').value = maxX-1;
-            document.getElementById('max-y').value = maxY-1;
-            document.getElementById('max-z').value = maxZ-1;
-            document.getElementById('checkpoint-id').value = checkpointId;
-        }
-
-        async function deleteCheckpoint(checkpointId) {
-            if (!confirm('Are you sure you want to delete this checkpoint?')) return;
-            
-            try {
-                const response = await fetch(`/api/checkpoints/${checkpointId}`, {
-                    method: 'DELETE'
-                });
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus('checkpoint-status', 'Checkpoint deleted successfully!', 'success');
-                    loadCheckpoints();
-                } else {
-                    showStatus('checkpoint-status', 'Error deleting checkpoint', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting checkpoint:', error);
-                showStatus('checkpoint-status', 'Error deleting checkpoint', 'error');
-            }
-        }
-
-        // Settings management
-        async function loadSettings() {
-            try {
-                const response = await fetch('/api/config');
-                const config = await response.json();
-                
-                document.getElementById('maxPlayers').value = config.maxPlayers;
-                document.getElementById('updateInterval').value = config.updateInterval;
-                document.getElementById('websocketPort').value = config.websocketPort;
-                document.getElementById('httpPort').value = config.httpPort;
-            } catch (error) {
-                console.error('Error loading settings:', error);
-                showStatus('settings-status', 'Error loading settings', 'error');
             }
         }
 
@@ -653,55 +469,6 @@
             } catch (error) {
                 console.error('Error assigning player:', error);
                 showStatus('team-status', 'Error assigning player', 'error');
-            }
-        });
-
-        document.getElementById('checkpoint-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const id = formData.get('id');
-            const checkpoint = {
-                name: formData.get('name'),
-                is_start_finish: formData.get('is_start_finish') === 'on' ? 1 : 0,
-                order_index: parseInt(formData.get('order_index')),
-                min_x: parseFloat(formData.get('min_x')),
-                min_y: parseFloat(formData.get('min_y')),
-                min_z: parseFloat(formData.get('min_z')),
-                max_x: parseFloat(formData.get('max_x')),
-                max_y: parseFloat(formData.get('max_y')),
-                max_z: parseFloat(formData.get('max_z'))
-            };
-            
-            try {
-                let response;
-                if (id == -1) {
-                    response = await fetch('/api/checkpoints', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(checkpoint)
-                    });
-                }
-                else {
-                    response = await fetch('/api/checkpoints/' + id, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(checkpoint)
-                    });
-                }
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus('checkpoint-status', 'Checkpoint created successfully!', 'success');
-                    e.target.reset();
-                    loadCheckpoints();
-                } else {
-                    showStatus('checkpoint-status', 'Error creating checkpoint', 'error');
-                }
-            } catch (error) {
-                console.error('Error creating checkpoint:', error);
-                showStatus('checkpoint-status', 'Error creating checkpoint', 'error');
             }
         });
 

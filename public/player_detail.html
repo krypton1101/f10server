@@ -66,8 +66,6 @@
         }
 
         .player-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
             gap: 30px;
             margin-bottom: 30px;
         }
@@ -261,40 +259,33 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="player-current-lap-count">Lap count:</label>
-                            <input type="number" id="player-current-lap-count" name="player_current_lap_count" required>
-                        </div>
-                        
-                        <div class="form-group">
                             <label for="player-score">Score:</label>
                             <input type="number" id="player-score" name="player_score" required>
                         </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="player-active" name="player_active">
+                                Active Player
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="player-pitstop" name="player_pitstop">
+                                On Pitstop
+                            </label>
+                        </div>
+                        
                         <button type="submit" class="btn btn-success">Update Player</button>
                     </form>
                 </div>
-                
-                <div class="player-stats">
-                    <h2>Player Statistics</h2>
-                    <div id="player-stats-content">
-                        <div class="loading">Loading player statistics...</div>
-                    </div>
-                </div>
             </div>
             
             <div class="data-section">
-                <h2>Checkpoint History</h2>
-                <div id="checkpoints-table-container">
-                    <div class="loading">Loading checkpoint history...</div>
-                </div>
-            </div>
-            
-            <div class="data-section">
-                <h2>Position History</h2>
-                <div id="positions-export-container" style="margin-bottom: 15px;">
-                    <button id="export-positions-btn" class="btn" style="display: none;">Export to JSON</button>
-                </div>
-                <div id="positions-table-container">
-                    <div class="loading">Loading position history...</div>
+                <h2>Laps</h2>
+                <div id="laps-table-container">
+                    <div class="loading">Loading laps table...</div>
                 </div>
             </div>
         </div>
@@ -359,8 +350,11 @@
                 const player = await response.json();
                 document.getElementById('player-uuid').value = player.player_uuid;
                 document.getElementById('player-name').value = player.name || '';
-                document.getElementById('player-current-lap-count').value = player.current_lap_count || '0';
                 document.getElementById('player-score').value = player.score || '0';
+                
+                // Set checkbox values
+                document.getElementById('player-active').checked = player.is_active === 1 || player.is_active === true;
+                document.getElementById('player-pitstop').checked = player.on_pitstop === 1 || player.on_pitstop === true;
                 
                 // Set team selection
                 if (player.team_id) {
@@ -376,195 +370,50 @@
             }
         }
 
-        // Load player statistics
-        async function loadPlayerStats() {
+        // Load laps
+        async function loadLaps() {
             try {
-                const response = await fetch(`/api/players/${playerUUID}`);
-                if (!response.ok) {
-                    throw new Error('Player position data not found');
-                }
-                
-                const player = await response.json();
-                const statsContent = document.getElementById('player-stats-content');
-                
-                statsContent.innerHTML = `
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: bold; color: #1976d2;">${player.x.toFixed(2)}, ${player.y.toFixed(2)}, ${player.z.toFixed(2)}</div>
-                            <div style="font-size: 0.9rem; color: #666;">Current Position</div>
-                        </div>
-                        <div style="background: #ffebee; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: bold; color: #d32f2f;">${player.velocity_x.toFixed(2)}, ${player.velocity_y.toFixed(2)}, ${player.velocity_z.toFixed(2)}</div>
-                            <div style="font-size: 0.9rem; color: #666;">Velocity</div>
-                        </div>
-                        <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: bold; color: #388e3c;">${player.yaw.toFixed(1)}°, ${player.pitch.toFixed(1)}°</div>
-                            <div style="font-size: 0.9rem; color: #666;">Rotation</div>
-                        </div>
-                        <div style="background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: bold; color: #f57c00;">${new Date(player.created_at).toLocaleString()}</div>
-                            <div style="font-size: 0.9rem; color: #666;">Last Update</div>
-                        </div>
-                    </div>
-                `;
-                
+                const response = await fetch(`/api/players/${playerUUID}/laps`);
+                const lapTimes = await response.json();
+                updateLapsTable(lapTimes);
             } catch (error) {
-                console.error('Error loading player stats:', error);
-                document.getElementById('player-stats-content').innerHTML = 
-                    '<div class="no-data">Error loading player statistics</div>';
+                console.error('Error loading laps:', error);
+                document.getElementById('laps-table-container').innerHTML =
+                    '<div class="no-data">Error loading laps</div>';
             }
         }
 
-        // Load player positions
-        async function loadPlayerPositions() {
-            try {
-                const response = await fetch(`/api/players/${playerUUID}/positions`);
-                const positions = await response.json();
-                updatePositionsTable(positions);
-            } catch (error) {
-                console.error('Error loading player positions:', error);
-                document.getElementById('positions-table-container').innerHTML = 
-                    '<div class="no-data">Error loading position history</div>';
-            }
-        }
-
-        // Update positions table
-        function updatePositionsTable(positions) {
-            const container = document.getElementById('positions-table-container');
-            const exportBtn = document.getElementById('export-positions-btn');
+        // Update laps table
+        function updateLapsTable(lapTimes) {
+            const container = document.getElementById('laps-table-container');
             
-            if (positions.length === 0) {
-                container.innerHTML = '<div class="no-data">No position history found</div>';
-                exportBtn.style.display = 'none';
+            if (lapTimes.length === 0) {
+                container.innerHTML = '<div class="no-data">No laps found</div>';
                 return;
             }
-
-            // Show export button
-            exportBtn.style.display = 'inline-block';
-            exportBtn.onclick = () => exportPositionsToJSON(positions);
-
+            
             container.innerHTML = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>#</th>
                             <th>Timestamp</th>
-                            <th>Position (x, y, z)</th>
-                            <th>Velocity (x, y, z)</th>
-                            <th>Rotation (yaw, pitch)</th>
-                            <th>Actions</th>
+                            <th>Lap time</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${positions.map(position => `
-                            <tr>
-                                <td>${position.id}</td>
-                                <td>${new Date(position.created_at).toLocaleString()}</td>
-                                <td>(${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)})</td>
-                                <td>(${position.velocity_x.toFixed(2)}, ${position.velocity_y.toFixed(2)}, ${position.velocity_z.toFixed(2)})</td>
-                                <td>(${position.yaw.toFixed(1)}°, ${position.pitch.toFixed(1)}°)</td>
-                                <td>
-                                    <button class="delete-btn" onclick="deletePosition(${position.id})">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${lapTimes.map((lap, index) => {
+                            return `
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td>${new Date(lap.timestamp).toLocaleString()}</td>
+                                    <td>0</td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
-        }
-
-        // Delete a position record
-        async function deletePosition(positionId) {
-            if (!confirm('Are you sure you want to delete this position record?')) return;
-            
-            try {
-                const response = await fetch(`/api/players/${playerUUID}/positions/${positionId}`, {
-                    method: 'DELETE'
-                });
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus('Position record deleted successfully!', 'success');
-                    loadPlayerPositions(); // Refresh the table
-                } else {
-                    showStatus('Error deleting position record', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting position:', error);
-                showStatus('Error deleting position record', 'error');
-            }
-        }
-
-        // Load player checkpoints
-        async function loadPlayerCheckpoints() {
-            try {
-                const response = await fetch(`/api/players/${playerUUID}/checkpoints`);
-                const checkpoints = await response.json();
-                updateCheckpointsTable(checkpoints);
-            } catch (error) {
-                console.error('Error loading player checkpoints:', error);
-                document.getElementById('checkpoints-table-container').innerHTML = 
-                    '<div class="no-data">Error loading checkpoint history</div>';
-            }
-        }
-
-        // Update checkpoints table
-        function updateCheckpointsTable(checkpoints) {
-            const container = document.getElementById('checkpoints-table-container');
-            
-            if (checkpoints.length === 0) {
-                container.innerHTML = '<div class="no-data">No checkpoint history found</div>';
-                return;
-            }
-
-            container.innerHTML = `
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Checkpoint ID</th>
-                            <th>Checkpoint Name</th>
-                            <th>Collected At</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${checkpoints.map(checkpoint => `
-                            <tr>
-                                <td>${checkpoint.checkpoint_id}</td>
-                                <td>${checkpoint.checkpoint_name}</td>
-                                <td>${new Date(checkpoint.collected_at).toLocaleString()}</td>
-                                <td>
-                                    <button class="delete-btn" onclick="deleteCheckpoint(${checkpoint.checkpoint_id})">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        // Delete a checkpoint record
-        async function deleteCheckpoint(checkpointId) {
-            if (!confirm('Are you sure you want to delete this checkpoint record?')) return;
-            
-            try {
-                const response = await fetch(`/api/players/${playerUUID}/checkpoints/${checkpointId}`, {
-                    method: 'DELETE'
-                });
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus('Checkpoint record deleted successfully!', 'success');
-                    loadPlayerCheckpoints(); // Refresh the table
-                } else {
-                    showStatus('Error deleting checkpoint record', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting checkpoint:', error);
-                showStatus('Error deleting checkpoint record', 'error');
-            }
         }
 
         // Update player details
@@ -575,8 +424,9 @@
             const playerData = {
                 name: formData.get('player_name'),
                 team_id: parseInt(formData.get('player_team')),
-                current_lap_count: parseInt(formData.get('player_current_lap_count')),
-                score: parseInt(formData.get('player_score'))
+                score: parseInt(formData.get('player_score')),
+                is_active: document.getElementById('player-active').checked,
+                on_pitstop: document.getElementById('player-pitstop').checked
             };
             
             if (!playerData.name || !playerData.team_id) {
@@ -616,46 +466,12 @@
             // Load data
             loadTeams();
             loadPlayerDetails();
-            loadPlayerStats();
-            loadPlayerPositions();
-            loadPlayerCheckpoints();
+            loadLaps();
             
             // Set up form submission
             document.getElementById('player-form').addEventListener('submit', updatePlayerDetails);
         });
 
-        // Export positions to JSON file
-        function exportPositionsToJSON(positions) {
-            try {
-                // Get player name for filename
-                const playerName = document.getElementById('player-name').value || 'player';
-                const fileName = `${playerName}_positions_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
-                
-                // Create JSON data
-                const jsonData = JSON.stringify(positions, null, 2);
-                
-                // Create blob and download
-                const blob = new Blob([jsonData], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                
-                // Clean up
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
-                
-                showStatus('Positions exported successfully!', 'success');
-            } catch (error) {
-                console.error('Error exporting positions:', error);
-                showStatus('Error exporting positions', 'error');
-            }
-        }
     </script>
 </body>
 </html>

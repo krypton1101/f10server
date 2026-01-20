@@ -18,40 +18,10 @@ const db = new sqlite3.Database('players.db');
 
 // Create tables if they don't exist
 db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS player_positions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    player_uuid TEXT NOT NULL,
-    timestamp INTEGER NOT NULL,
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    z REAL NOT NULL,
-    velocity_x REAL NOT NULL,
-    velocity_y REAL NOT NULL,
-    velocity_z REAL NOT NULL,
-    yaw REAL NOT NULL,
-    pitch REAL NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
   db.run(`CREATE TABLE IF NOT EXISTS teams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     color TEXT NOT NULL,
-    is_active BOOLEAN DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS checkpoints (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    is_start_finish BOOLEAN DEFAULT 0,
-    min_x REAL NOT NULL,
-    min_y REAL NOT NULL,
-    min_z REAL NOT NULL,
-    max_x REAL NOT NULL,
-    max_y REAL NOT NULL,
-    max_z REAL NOT NULL,
-    order_index INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -59,307 +29,63 @@ db.serialize(() => {
     player_uuid TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     team_id INTEGER NOT NULL,
-    current_lap_count INTEGER DEFAULT 0,
     score INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT 1,
+    on_pitstop BOOLEAN DEFAULT 0,
     FOREIGN KEY (team_id) REFERENCES teams (id)
   )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS player_checkpoints (
+  db.run(`CREATE TABLE IF NOT EXISTS laps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_uuid TEXT NOT NULL,
-    checkpoint_id INTEGER NOT NULL,
-    collected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (player_uuid, checkpoint_id),
-    FOREIGN KEY (player_uuid) REFERENCES players (player_uuid),
-    FOREIGN KEY (checkpoint_id) REFERENCES checkpoints (id)
+    timestamp INTEGER NOT NULL,
+    is_start BOOLEAN DEFAULT 0,
+    FOREIGN KEY (player_uuid) REFERENCES players (player_uuid)
   )`);
 });
-
-// Helper functions for checkpoint detection
-function lineSegmentIntersectsAABB(p1, p2, aabbMin, aabbMax) {
-  let dot = p1;
-  let dir = { x: p2.x - p1.x, y: p2.y - p1.y, z: p2.z - p1.z };
-  if (p2.x >= aabbMin.x && p2.y >= aabbMin.y && p2.z >= aabbMin.z &&
-      p2.x <= aabbMax.x && p2.y <= aabbMax.y && p2.z <= aabbMax.z) {// If end dot already in AABB
-    return true;
-  }
-
-  for (let i = 0; i<8; i++) {
-    if (dot.x >= aabbMin.x && dot.y >= aabbMin.y && dot.z >= aabbMin.z &&
-        dot.x <= aabbMax.x && dot.y <= aabbMax.y && dot.z <= aabbMax.z) {// If dot already in AABB
-      return true;
-    }
-    else if ((xor(dir.x < 0, dot.x < aabbMin.x) || xor(dir.x > 0, dot.x > aabbMax.x) || dir.x == 0) &&
-            (xor(dir.y < 0, dot.y < aabbMin.y) || xor(dir.y > 0, dot.y > aabbMax.y) || dir.y == 0) &&
-            (xor(dir.z < 0, dot.z < aabbMin.z) || xor(dir.z > 0, dot.z > aabbMax.z) || dir.z == 0)) { // If dot will move towards AABB
-      dir = { x: dir.x/2, y: dir.y/2, z: dir.z/2 };
-      dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
-      continue;
-    }
-    else if ( i > 0 ) { // Can't mirror on first iteration
-      dir = { x: -dir.x/2, y: -dir.y/2, z: -dir.z/2 };
-      dot = { x: dot.x + dir.x, y: dot.y + dir.y, z: dot.z + dir.z };
-      if ((xor(dir.x < 0, dot.x < aabbMin.x) || xor(dir.x > 0, dot.x > aabbMax.x) || dir.x == 0) &&
-            (xor(dir.y < 0, dot.y < aabbMin.y) || xor(dir.y > 0, dot.y > aabbMax.y) || dir.y == 0) &&
-            (xor(dir.z < 0, dot.z < aabbMin.z) || xor(dir.z > 0, dot.z > aabbMax.z) || dir.z == 0)) // If mirrored dir will not move towards AABB
-        continue;
-      else {
-        return false;
-      }
-    }
-    else {
-      return false;
-    }
-  }
-  return false;
-}
-
-function xor(val1, val2) {
-  return (val1 && !val2) || (!val1 && val2);
-}
-
-function min(val1, val2) {
-  return val1 < val2 ? val1 : val2;
-}
-
-function max(val1, val2) {
-  return val1 > val2 ? val1 : val2;
-}
-
-function checkPlayerCheckpoints(playerUuid, callback) {
-  db.all(`
-    SELECT COUNT(DISTINCT pc.checkpoint_id) as collected_count
-    FROM player_checkpoints pc
-    JOIN checkpoints c ON pc.checkpoint_id = c.id
-    WHERE pc.player_uuid = ? AND c.is_start_finish = 0
-  `, [playerUuid], (err, rows) => {
-    if (err) {
-      callback(err, null);
-      return;
-    }
-    
-    const collectedCount = rows[0]?.collected_count || 0;
-    
-    // Get total non-start/finish checkpoints
-    db.get(`
-      SELECT COUNT(*) as total_count
-      FROM checkpoints
-      WHERE is_start_finish = 0
-    `, (err, totalRow) => {
-      if (err) {
-        callback(err, null);
-        return;
-      }
-      
-      const totalCount = totalRow?.total_count || 0;
-      callback(null, collectedCount >= totalCount);
-    });
-  });
-}
-
-function processCheckpointCrossing(playerUuid, checkpointId, callback) {
-  db.get(`
-    SELECT is_start_finish FROM checkpoints WHERE id = ?
-  `, [checkpointId], (err, checkpoint) => {
-    if (err) {
-      callback(err);
-      return;
-    }
-    
-    if (!checkpoint) {
-      callback(new Error('Checkpoint not found'));
-      return;
-    }
-    
-    if (checkpoint.is_start_finish) {
-      // Check if player has all other checkpoints
-      checkPlayerCheckpoints(playerUuid, (err, hasAllCheckpoints) => {
-        if (err) {
-          callback(err);
-          return;
-        }
-        
-        if (hasAllCheckpoints) {
-          // Complete lap for the team
-          db.run(`
-            UPDATE players SET current_lap_count = current_lap_count + 1
-            WHERE player_uuid = ?
-          `, [playerUuid], (err) => {
-            if (err) {
-              callback(err);
-              return;
-            }
-            
-            // Clear player checkpoints
-            db.run(`
-              DELETE FROM player_checkpoints WHERE player_uuid = ?
-            `, [playerUuid], (err) => {
-              if (err) {
-                callback(err);
-                return;
-              }
-              
-              console.log(`Player ${playerUuid} completed a lap!`);
-              callback(null, true); // Lap completed
-            });
-          });
-        } else {
-          callback(null, false); // Not enough checkpoints for lap completion
-        }
-      });
-    } else {
-      // Regular checkpoint, just mark as collected by this player
-      db.run(`
-        INSERT OR IGNORE INTO player_checkpoints (player_uuid, checkpoint_id)
-        VALUES (?, ?)
-      `, [playerUuid, checkpointId], (err) => {
-        if (err) {
-          callback(err);
-          return;
-        }
-        
-        console.log(`Player ${playerUuid} collected checkpoint ${checkpointId}`);
-        callback(null, false); // No lap completed
-      });
-    }
-  });
-}
 
 // WebSocket Server
 const wss = new WebSocket.Server({ port: WS_PORT });
 
 wss.on('connection', (ws, req) => {
   console.log('New WebSocket connection established');
-  db.all(`
-    SELECT * FROM checkpoints
-    ORDER BY order_index, name
-  `, (err, rows) => {
-    if (err) {
-      console.error('Error getting checkpoints on sending:', err);
-      return;
-    }
-    ws.send(JSON.stringify(rows));
-  });
   
   ws.on('message', (data) => {
     try {
       const playerData = JSON.parse(data);
       
       // Validate the JSON structure
-      if (!playerData.UUID || !playerData.timestamp || !playerData.position || !playerData.velocity || 
-          playerData.yaw === undefined || playerData.pitch === undefined) {
+      if (!playerData.UUID || !playerData.timestamp) {
         ws.send(JSON.stringify({ error: 'Invalid JSON format' }));
         return;
       }
-      
-      // Store current position in database
-      const stmt = db.prepare(`
-        INSERT INTO player_positions (player_uuid, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      
-      stmt.run(
-        playerData.UUID,
-        playerData.timestamp,
-        playerData.position.x,
-        playerData.position.y,
-        playerData.position.z,
-        playerData.velocity.x,
-        playerData.velocity.y,
-        playerData.velocity.z,
-        playerData.yaw,
-        playerData.pitch
-      );
-      
-      stmt.finalize();
       
       // Get player's team
       db.get(`
         SELECT t.id as team_id FROM players p
         JOIN teams t ON p.team_id = t.id
-        WHERE p.player_uuid = ? AND t.is_active = 1
+        WHERE p.player_uuid = ?
       `, [playerData.UUID], (err, teamRow) => {
         if (err || !teamRow) {
-          ws.send(JSON.stringify({ 
-            status: 'success', 
+          ws.send(JSON.stringify({
+            status: 'success',
             UUID: playerData.UUID,
-            message: 'Position data stored successfully (no team assigned)' 
+            message: 'Data received successfully (no team assigned)'
           }));
           return;
         }
         
         const teamId = teamRow.team_id;
         
-        // Get previous position for trajectory checking
-        db.all(`
-          SELECT x, y, z
-          FROM player_positions
-          WHERE player_uuid = ?
-          ORDER BY timestamp DESC
-          LIMIT 2
-        `, [playerData.UUID], (err, posRows) => {
-          if (err) {
-            console.error('Error getting position history:', err);
-            return;
-          }
-          
-          if (posRows.length < 2) {
-            return;
-          }
-        
-          const prevPos = { x: posRows[1].x, y: posRows[1].y, z: posRows[1].z };
-          const currPos = { x: playerData.position.x, y: playerData.position.y, z: playerData.position.z };
-          
-          // Check checkpoint crossings if we have previous position
-          db.all(`
-            SELECT id, name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z
-            FROM checkpoints
-            ORDER BY order_index
-          `, (err, checkpoints) => {
-            if (err) {
-              console.error('Error getting checkpoints:', err);
-              return;
-            }
-            
-            checkpoints.forEach(checkpoint => {
-              const aabbMin = { x: checkpoint.min_x, y: checkpoint.min_y, z: checkpoint.min_z };
-              const aabbMax = { x: checkpoint.max_x, y: checkpoint.max_y, z: checkpoint.max_z };
-              
-              if (lineSegmentIntersectsAABB(prevPos, currPos, aabbMin, aabbMax)) {
-                // Check if this checkpoint was already collected by this player
-                db.get(`
-                  SELECT 1 FROM player_checkpoints 
-                  WHERE player_uuid = ? AND checkpoint_id = ?
-                `, [playerData.UUID, checkpoint.id], (err, collectedRow) => {
-                  if (err || collectedRow) {
-                    return; // Already collected or error
-                  }
-                  
-                  // Process checkpoint crossing
-                  processCheckpointCrossing(playerData.UUID, checkpoint.id, (err, lapCompleted) => {
-                    if (err) {
-                      console.error('Error processing checkpoint crossing:', err);
-                      return;
-                    }
-                    
-                    if (lapCompleted) {
-                      console.log(`Player ${playerData.UUID} completed a lap for team ${teamId}!`);
-                    }
-                  });
-                });
-              }
-            });
-          });
-        });
-        
-        ws.send(JSON.stringify({ 
-          status: 'success', 
+        ws.send(JSON.stringify({
+          status: 'success',
           UUID: playerData.UUID,
           teamId: teamId,
-          message: 'Position data stored and processed successfully' 
+          message: 'Data received successfully'
         }));
       });
       
-      console.log(`Stored position data for player ${playerData.UUID}`);
+      console.log(`Received data for player ${playerData.UUID}`);
       
     } catch (error) {
       console.error('Error processing WebSocket message:', error);
@@ -380,56 +106,27 @@ wss.on('connection', (ws, req) => {
 
 // Serve main page
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'leaderboard.html'));
 });
 
-// Serve config page
-app.get('/config', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'config.html'));
+// Serve teams page
+app.get('/teams', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'teams.html'));
 });
 
 // Get all players with team information
 app.get('/api/players', (req, res) => {
   db.all(`
-    SELECT pp.player_uuid, p.name as player_name, t.name as team_name, t.color as team_color,
-           pp.x, pp.y, pp.z, pp.velocity_x, pp.velocity_y, pp.velocity_z, pp.yaw, pp.pitch, pp.created_at
-    FROM player_positions pp
-    LEFT JOIN players p ON pp.player_uuid = p.player_uuid
+    SELECT p.player_uuid, p.name as player_name, t.name as team_name, t.color as team_color
+    FROM players p
     LEFT JOIN teams t ON p.team_id = t.id
-    WHERE pp.timestamp = (
-        SELECT MAX(timestamp)
-        FROM player_positions
-        WHERE player_uuid = pp.player_uuid
-    )
-    ORDER BY pp.created_at DESC
-    LIMIT 100
+    ORDER BY p.name
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
     res.json(rows);
-  });
-});
-
-// Get player by ID (latest position)
-app.get('/api/players/:id', (req, res) => {
-  const player_UUID = req.params.id;
-  db.get(`
-    SELECT * FROM player_positions
-    WHERE player_uuid = ?
-    ORDER BY created_at DESC
-    LIMIT 1
-  `, [player_UUID], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (!row) {
-      res.status(404).json({ error: 'Player not found' });
-      return;
-    }
-    res.json(row);
   });
 });
 
@@ -454,97 +151,10 @@ app.get('/api/players/:id/details', (req, res) => {
   });
 });
 
-// Get all positions for a specific player
-app.get('/api/players/:id/positions', (req, res) => {
-  const player_UUID = req.params.id;
-  db.all(`
-    SELECT id, timestamp, x, y, z, velocity_x, velocity_y, velocity_z, yaw, pitch, created_at
-    FROM player_positions
-    WHERE player_uuid = ?
-    ORDER BY created_at DESC
-  `, [player_UUID], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
-});
-
-// Get all checkpoints collected by a specific player
-app.get('/api/players/:id/checkpoints', (req, res) => {
-  const player_UUID = req.params.id;
-  db.all(`
-    SELECT pc.checkpoint_id, c.name as checkpoint_name, pc.collected_at
-    FROM player_checkpoints pc
-    JOIN checkpoints c ON pc.checkpoint_id = c.id
-    WHERE pc.player_uuid = ?
-    ORDER BY pc.collected_at DESC
-  `, [player_UUID], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
-});
-
-// Delete a specific position record
-app.delete('/api/players/:id/positions/:positionId', (req, res) => {
-  const player_UUID = req.params.id;
-  const positionId = req.params.positionId;
-  
-  db.run(`
-    DELETE FROM player_positions
-    WHERE id = ? AND player_uuid = ?
-  `, [positionId, player_UUID], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Position record not found' });
-      return;
-    }
-    
-    res.json({
-      status: 'success',
-      message: 'Position record deleted successfully'
-    });
-  });
-});
-
-// Delete a specific checkpoint record
-app.delete('/api/players/:id/checkpoints/:checkpointId', (req, res) => {
-  const player_UUID = req.params.id;
-  const checkpointId = req.params.checkpointId;
-  
-  db.run(`
-    DELETE FROM player_checkpoints
-    WHERE player_uuid = ? AND checkpoint_id = ?
-  `, [player_UUID, checkpointId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Checkpoint record not found' });
-      return;
-    }
-    
-    res.json({
-      status: 'success',
-      message: 'Checkpoint record deleted successfully'
-    });
-  });
-});
-
 // Update player details
 app.put('/api/players/:id', (req, res) => {
   const player_UUID = req.params.id;
-  const { name, team_id, current_lap_count, score } = req.body;
+  const { name, team_id, score, is_active, on_pitstop } = req.body;
   
   if (!name || !team_id) {
     res.status(400).json({ error: 'Name and team_id are required' });
@@ -552,9 +162,9 @@ app.put('/api/players/:id', (req, res) => {
   }
   
   db.run(`
-    INSERT OR REPLACE INTO players (player_uuid, name, team_id, current_lap_count, score)
-    VALUES (?, ?, ?, ?, ?)
-  `, [player_UUID, name, team_id, current_lap_count || 0, score || 0], function(err) {
+    INSERT OR REPLACE INTO players (player_uuid, name, team_id, score, is_active, on_pitstop)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, [player_UUID, name, team_id, score || 0, is_active ? 1 : 0, on_pitstop ? 1 : 0], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -569,6 +179,23 @@ app.put('/api/players/:id', (req, res) => {
       status: 'success',
       message: 'Player updated successfully'
     });
+  });
+});
+
+// Get lap times for a specific player
+app.get('/api/players/:id/laps', (req, res) => {
+  const player_UUID = req.params.id;
+  db.all(`
+    SELECT timestamp
+    FROM laps
+    WHERE player_uuid = ?
+    ORDER BY timestamp DESC
+  `, [player_UUID], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
   });
 });
 
@@ -637,94 +264,6 @@ app.delete('/api/teams/:id', (req, res) => {
   });
 });
 
-// Checkpoints API
-app.get('/api/checkpoints', (req, res) => {
-  db.all(`
-    SELECT * FROM checkpoints
-    ORDER BY order_index, name
-  `, (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
-});
-
-app.post('/api/checkpoints', (req, res) => {
-  const { name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index } = req.body;
-  
-  if (!name || min_x === undefined || min_y === undefined || min_z === undefined || 
-      max_x === undefined || max_y === undefined || max_z === undefined) {
-    res.status(400).json({ error: 'Name and coordinates are required' });
-    return;
-  }
-  
-  db.run(`
-    INSERT INTO checkpoints (name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [name, is_start_finish || 0, min(min_x, max_x + 1), min(min_y, max_y + 1), min(min_z, max_z + 1), max(min_x, max_x + 1), max(min_y, max_y + 1), max(min_z, max_z + 1), order_index || 0], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    
-    res.json({ 
-      status: 'success', 
-      message: 'Checkpoint created successfully',
-      checkpointId: this.lastID
-    });
-  });
-});
-
-app.put('/api/checkpoints/:id', (req, res) => {
-  const checkpointId = req.params.id;
-  const { name, is_start_finish, min_x, min_y, min_z, max_x, max_y, max_z, order_index } = req.body;
-  
-  if (!name || min_x === undefined || min_y === undefined || min_z === undefined || 
-      max_x === undefined || max_y === undefined || max_z === undefined || order_index === undefined) {
-    res.status(400).json({ error: 'Name and coordinates are required' });
-    return;
-  }
-  
-  db.run(`
-    UPDATE checkpoints SET name = ?, is_start_finish = ?, min_x = ?, min_y = ?, min_z = ?, max_x = ?, max_y = ?, max_z = ?, order_index = ? WHERE id = ?
-  `, [name, is_start_finish || 0, min_x, min_y, min_z, max_x + 1, max_y + 1, max_z + 1, order_index, checkpointId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    
-    res.json({ 
-      status: 'success', 
-      message: 'Checkpoint updated successfully'
-    });
-  });
-});
-
-app.delete('/api/checkpoints/:id', (req, res) => {
-  const checkpointId = req.params.id;
-  
-  db.run(`
-    DELETE FROM checkpoints WHERE id = ?
-  `, [checkpointId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Checkpoint not found' });
-      return;
-    }
-    
-    res.json({ 
-      status: 'success', 
-      message: 'Checkpoint deleted successfully'
-    });
-  });
-});
-
 // Player-Team assignment API
 app.post('/api/player-team', (req, res) => {
   const { player_uuid, team_id, name } = req.body;
@@ -753,15 +292,40 @@ app.post('/api/player-team', (req, res) => {
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
   db.all(`
-    SELECT p.player_uuid, p.name, t.color, p.current_lap_count as lap_count, COALESCE(player_checkpoint_counts.checkpoint_count, 0) as checkpoint_count
+    SELECT p.player_uuid, p.name, t.color,
+           COALESCE(lap_counts.lap_count, 0) as lap_count,
+           laps.timestamp as last_lap_time
     FROM players p
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN (
-      SELECT player_uuid, COUNT(DISTINCT checkpoint_id) as checkpoint_count
-      FROM player_checkpoints
+      SELECT player_uuid, COUNT(*) as lap_count
+      FROM laps
       GROUP BY player_uuid
-    ) player_checkpoint_counts ON p.player_uuid = player_checkpoint_counts.player_uuid
-    ORDER BY lap_count DESC, checkpoint_count DESC, p.name
+    ) lap_counts ON p.player_uuid = lap_counts.player_uuid
+    LEFT JOIN (
+      SELECT player_uuid, MAX(timestamp) as timestamp
+      FROM laps
+      GROUP BY player_uuid
+    ) laps ON p.player_uuid = laps.player_uuid
+    ORDER BY lap_count DESC, last_lap_time ASC, p.name
+  `, (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Get recent lap completions
+app.get('/api/laps', (req, res) => {
+  db.all(`
+    SELECT l.player_uuid, p.name, t.color, l.timestamp
+    FROM laps l
+    JOIN players p ON l.player_uuid = p.player_uuid
+    LEFT JOIN teams t ON p.team_id = t.id
+    ORDER BY l.timestamp DESC
+    LIMIT 50
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -792,6 +356,5 @@ process.on('SIGINT', () => {
 
 // Export functions for testing
 module.exports = {
-  lineSegmentIntersectsAABB,
-  xor
+  // Empty for now
 };

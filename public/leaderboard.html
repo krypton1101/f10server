@@ -116,7 +116,13 @@
                 playerElement.querySelector('.position-indicator').textContent = index + 1;
                 playerElement.querySelector('.player-name').textContent = p.name;
                 playerElement.querySelector('.lap-count').textContent = `${p.lap_count} laps`;
-                playerElement.querySelector('.player-stats span').textContent = `Checkpoints: ${p.checkpoint_count}`;
+                // Display last lap time if available
+                if (p.last_lap_time) {
+                    const lastLapDate = new Date(p.last_lap_time);
+                    playerElement.querySelector('.player-stats span').textContent = `Last lap: ${lastLapDate.toLocaleTimeString()}`;
+                } else {
+                    playerElement.querySelector('.player-stats span').textContent = 'No laps yet';
+                }
                 
                 // Apply position class for CSS grid positioning
                 // Remove any existing position classes

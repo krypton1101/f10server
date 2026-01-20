@@ -299,8 +299,8 @@
                         <div>Player Name</div>
                         <div>Team</div>
                         <div>Player UUID</div>
-                        <div>Last Position</div>
-                        <div>Last Update</div>
+                        <div>Lap Count</div>
+                        <div>Last Lap Time</div>
                     </div>
                     <div id="players-container">
                         <div class="loading">Loading players...</div>
@@ -364,8 +364,8 @@
                     <div class="player-id">
                         <a class="copy-to-clipboard" onclick="copyToClipboard('${player.player_uuid}')">${player.player_uuid}</a>
                     </div>
-                    <div class="position">(${player.x.toFixed(2)}, ${player.y.toFixed(2)}, ${player.z.toFixed(2)})</div>
-                    <div class="timestamp">${new Date(player.created_at).toLocaleString()}</div>
+                    <div class="lap-count">${player.lap_count || 0}</div>
+                    <div class="last-lap-time">${player.last_lap_time ? new Date(player.last_lap_time).toLocaleString() : 'N/A'}</div>
                 </div>
             `).join('');
         }   
