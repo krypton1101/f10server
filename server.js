@@ -55,7 +55,7 @@ wss.on('connection', (ws, req) => {
       const playerData = JSON.parse(data);
       
       // Validate the JSON structure
-      if (!playerData.UUID || !playerData.timestamp) {
+      if (!playerData.UUID || !playerData.timestamp || playerData.is_start === undefined || playerData.is_start === null) {
         ws.send(JSON.stringify({ error: 'Invalid JSON format' }));
         return;
       }
@@ -292,22 +292,14 @@ app.post('/api/player-team', (req, res) => {
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
   db.all(`
-    SELECT p.player_uuid, p.name, t.color,
-           COALESCE(lap_counts.lap_count, 0) as lap_count,
-           laps.timestamp as last_lap_time
+    SELECT p.player_uuid, p.name, t.color, p.on_pitstop,
+           COUNT(laps.id) as lap_count,
+           MAX(laps.timestamp) as last_lap_time
     FROM players p
     LEFT JOIN teams t ON t.id = p.team_id
-    LEFT JOIN (
-      SELECT player_uuid, COUNT(*) as lap_count
-      FROM laps
-      GROUP BY player_uuid
-    ) lap_counts ON p.player_uuid = lap_counts.player_uuid
-    LEFT JOIN (
-      SELECT player_uuid, MAX(timestamp) as timestamp
-      FROM laps
-      GROUP BY player_uuid
-    ) laps ON p.player_uuid = laps.player_uuid
-    ORDER BY lap_count DESC, last_lap_time ASC, p.name
+    LEFT JOIN laps ON p.player_uuid = laps.player_uuid
+    WHERE p.is_active = 1
+    ORDER BY p.player_uuid
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
