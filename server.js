@@ -57,33 +57,27 @@ wss.on('connection', (ws, req) => {
       // Validate the JSON structure
       if (!playerData.UUID || !playerData.timestamp || playerData.is_start === undefined || playerData.is_start === null) {
         ws.send(JSON.stringify({ error: 'Invalid JSON format' }));
+        console.log(`Received invalid data`);
         return;
       }
       
-      // Get player's team
-      db.get(`
-        SELECT t.id as team_id FROM players p
-        JOIN teams t ON p.team_id = t.id
-        WHERE p.player_uuid = ?
-      `, [playerData.UUID], (err, teamRow) => {
-        if (err || !teamRow) {
-          ws.send(JSON.stringify({
-            status: 'success',
-            UUID: playerData.UUID,
-            message: 'Data received successfully (no team assigned)'
-          }));
-          return;
-        }
-        
-        const teamId = teamRow.team_id;
-        
-        ws.send(JSON.stringify({
-          status: 'success',
-          UUID: playerData.UUID,
-          teamId: teamId,
-          message: 'Data received successfully'
-        }));
-      });
+      // If player does not exist, create a new record
+      db.run(`
+        INSERT OR IGNORE INTO players (player_uuid, name, team_id)
+        VALUES (?, "default", 0)
+      `, [playerData.UUID]);
+      
+      // Insert lap data
+      db.run(`
+        INSERT INTO laps (player_uuid, timestamp, is_start)
+        VALUES (?, ?, ?)
+      `, [playerData.UUID, playerData.timestamp, playerData.is_start]);
+      
+      ws.send(JSON.stringify({
+        status: 'success',
+        UUID: playerData.UUID,
+        message: 'Data received successfully'
+      }));
       
       console.log(`Received data for player ${playerData.UUID}`);
       
@@ -182,6 +176,31 @@ app.put('/api/players/:id', (req, res) => {
   });
 });
 
+// Delete player details
+app.delete('/api/players/:id', (req, res) => {
+  const player_UUID = req.params.id;
+  
+  db.run(`
+    DELETE FROM players
+    WHERE player_uuid = ?
+  `, [player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Player deleted successfully'
+    });
+  });
+});
+
 // Get lap times for a specific player
 app.get('/api/players/:id/laps', (req, res) => {
   const player_UUID = req.params.id;
@@ -196,6 +215,33 @@ app.get('/api/players/:id/laps', (req, res) => {
       return;
     }
     res.json(rows);
+  });
+});
+
+// Delete last lap for a specific player
+app.delete('/api/players/:id/laps', (req, res) => {
+  const player_UUID = req.params.id;
+  
+  db.run(`
+    DELETE FROM laps
+    WHERE player_uuid = ?
+    ORDER BY timestamp DESC
+    LIMIT 1
+  `, [player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Lap not found' });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Lap deleted successfully'
+    });
   });
 });
 

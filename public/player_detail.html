@@ -244,7 +244,10 @@
                 <div class="player-details">
                     <h2>Player Information</h2>
                     <form id="player-form">
-                        <input type="hidden" id="player-uuid" name="player_uuid">
+                        <div class="form-group">
+                            <label for="player-uuid">Player UUID:</label>
+                            <input type="text" id="player-uuid" name="player_uuid" required>
+                        </div>
                         
                         <div class="form-group">
                             <label for="player-name">Player Name:</label>
@@ -428,6 +431,7 @@
                 is_active: document.getElementById('player-active').checked,
                 on_pitstop: document.getElementById('player-pitstop').checked
             };
+            var newPlayerUUID = formData.get('player_uuid');
             
             if (!playerData.name || !playerData.team_id) {
                 showStatus('Please fill in all fields', 'error');
@@ -435,7 +439,14 @@
             }
             
             try {
-                const response = await fetch(`/api/players/${playerUUID}`, {
+                if (newPlayerUUID !== playerUUID && playerUUID) {
+                    const response = await fetch(`/api/players/${playerUUID}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                }
+
+                const response = await fetch(`/api/players/${newPlayerUUID}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(playerData)
@@ -458,16 +469,18 @@
         document.addEventListener('DOMContentLoaded', () => {
             playerUUID = getPlayerUUIDFromURL();
             
-            if (!playerUUID) {
-                showStatus('No player UUID provided', 'error');
-                return;
-            }
-            
             // Load data
             loadTeams();
-            loadPlayerDetails();
-            loadLaps();
-            
+
+            if (!playerUUID) {
+                console.error('No player UUID provided');
+                showStatus('No player UUID provided', 'error');
+            }
+            else {
+                loadPlayerDetails();
+                loadLaps();
+            }
+
             // Set up form submission
             document.getElementById('player-form').addEventListener('submit', updatePlayerDetails);
         });

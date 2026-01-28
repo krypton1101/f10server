@@ -8,7 +8,7 @@
         #players-container {
             position: relative;
         }
-        #players-container li {
+        #player-bar {
             position: absolute;
             top: 0;
             left: 0;
@@ -72,7 +72,7 @@
                 playerElement = document.getElementById(`uuid-${p.player_uuid}`);
                 if (!playerElement) {
                     // Create new element
-                    playerElement = document.createElement('li');
+                    playerElement = document.createElement('div');
                     playerElement.className = 'player-bar';
                     playerElement.id = `uuid-${p.player_uuid}`;
                     // Initialize content structure
@@ -81,7 +81,7 @@
                         <div class="player-info">
                             <div class="player-name"></div>
                             <div class="lap-count"></div>
-                            <--<div class="lap-time"></div>-->
+                            <!--<div class="lap-time"></div>-->
                         </div>
                     `;
                     playerElement.style.backgroundColor = p.color;
