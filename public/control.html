@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Control Panel - Minecraft Player Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .content {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .players-list {
+            max-height: 700px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .player-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .player-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .player-item:last-child {
+            border-bottom: none;
+        }
+
+        .player-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            margin: 0 2px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #27ae60, #229954);
+        }
+
+        .btn-remove {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .btn-pitstop {
+            background: linear-gradient(135deg, #f39c12, #d35400);
+        }
+
+        .btn-active {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .player-item, .player-header {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            
+            .player-header {
+                display: none;
+            }
+            
+            .player-item {
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <a href="player_data.html" class="back-link">← Back to Player List</a>
+        
+        <div class="header">
+            <h1>Player Control Panel</h1>
+            <p>Manage player laps, pitstops, and active status</p>
+        </div>
+        
+        <div class="content">
+            <div class="players-list">
+                <div class="player-header">
+                    <div>Player Name</div>
+                    <div>Laps</div>
+                    <div>Pitstop</div>
+                    <div>Active</div>
+                    <div>Actions</div>
+                </div>
+                <div id="players-container">
+                    <div class="loading">Loading players...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let players = [];
+        let statusWindowTimer;
+
+        // Show status message
+        function showStatus(message, type) {
+            if (statusWindowTimer) {
+                clearTimeout(statusWindowTimer);
+                statusWindowTimer = null;
+            }
+
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            statusWindowTimer = setTimeout(() => {
+                status.style.display = 'none';
+                statusWindowTimer = null;
+            }, 3000);
+        }
+
+        // Load players data
+        async function loadPlayers() {
+            try {
+                const response = await fetch('/api/players');
+                players = await response.json();
+                updatePlayersDisplay();
+            } catch (error) {
+                console.error('Error loading players:', error);
+                showStatus('Error loading players data', 'error');
+            }
+        }
+
+        // Update players display
+        function updatePlayersDisplay() {
+            const container = document.getElementById('players-container');
+            
+            if (players.length === 0) {
+                container.innerHTML = '<div class="no-data">No player data available</div>';
+                return;
+            }
+
+            // Sort players by name descending
+            players.sort((a, b) => (b.player_name || '').localeCompare(a.player_name || ''));
+
+            container.innerHTML = players.map(player => `
+                <div class="player-item">
+                    <div class="player-name">
+                        <a href="player_detail.html?uuid=${player.player_uuid}" style="color: #333; text-decoration: none; font-weight: bold;">
+                            ${player.player_name || 'Unknown Player'}
+                        </a>
+                    </div>
+                    <div class="lap-count">${player.lap_count || 0}</div>
+                    <div class="pitstop-status">${player.on_pitstop}</div>
+                    <div class="active-status">${player.is_active}</div>
+                    <div class="actions">
+                        <button class="btn btn-add" onclick="addLap('${player.player_uuid}')">+</button>
+                        <button class="btn btn-remove" onclick="removeLap('${player.player_uuid}')">-</button>
+                        <button class="btn btn-pitstop" onclick="togglePitstop('${player.player_uuid}')">P</button>
+                        <button class="btn btn-active" onclick="toggleActive('${player.player_uuid}')">A</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Add a lap for a player
+        async function addLap(playerUUID) {
+            try {
+                const response = await fetch(`/api/players/${playerUUID}/laps`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('Lap added successfully!', 'success');
+                    loadPlayers(); // Refresh the list
+                } else {
+                    showStatus('Error adding lap: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error adding lap:', error);
+                showStatus('Error adding lap', 'error');
+            }
+        }
+
+        // Remove last lap for a player
+        async function removeLap(playerUUID) {
+            try {
+                const response = await fetch(`/api/players/${playerUUID}/lap`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('Lap removed successfully!', 'success');
+                    loadPlayers(); // Refresh the list
+                } else {
+                    showStatus('Error removing lap: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error removing lap:', error);
+                showStatus('Error removing lap', 'error');
+            }
+        }
+
+        // Toggle pitstop status
+        async function togglePitstop(playerUUID) {
+            try {
+                const response = await fetch(`/api/players/${playerUUID}/pitstop`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('Pitstop status toggled successfully!', 'success');
+                    loadPlayers(); // Refresh the list
+                } else {
+                    showStatus('Error toggling pitstop: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling pitstop:', error);
+                showStatus('Error toggling pitstop', 'error');
+            }
+        }
+
+        // Toggle active status
+        async function toggleActive(playerUUID) {
+            try {
+                const response = await fetch(`/api/players/${playerUUID}/active`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus('Active status toggled successfully!', 'success');
+                    loadPlayers(); // Refresh the list
+                } else {
+                    showStatus('Error toggling active status: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling active status:', error);
+                showStatus('Error toggling active status', 'error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPlayers();
+        });
+    </script>
+</body>
+</html>

@@ -10,7 +10,6 @@
         }
         #player-bar {
             position: absolute;
-            top: 0;
             left: 0;
             transition: all 0.3s ease-out;
         }
@@ -100,7 +99,7 @@
                 // }                 
 
                 // Apply the correct position
-                playerElement.style.top = index * elementStep;
+                playerElement.style.top = index * elementStep+"px";
                 
                 // Add to container if it's a new element
                 if (!playerElement.parentNode) {

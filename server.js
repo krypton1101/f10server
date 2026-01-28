@@ -111,9 +111,11 @@ app.get('/teams', (req, res) => {
 // Get all players with team information
 app.get('/api/players', (req, res) => {
   db.all(`
-    SELECT p.player_uuid, p.name as player_name, t.name as team_name, t.color as team_color
+    SELECT p.player_uuid, p.name as player_name, p.is_active, p.on_pitstop, t.name as team_name, t.color as team_color, COUNT(l.id) as lap_count
     FROM players p
     LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN laps l ON p.player_uuid = l.player_uuid
+    GROUP BY p.player_uuid, player_name, team_name, team_color
     ORDER BY p.name
   `, (err, rows) => {
     if (err) {
@@ -219,15 +221,17 @@ app.get('/api/players/:id/laps', (req, res) => {
 });
 
 // Delete last lap for a specific player
-app.delete('/api/players/:id/laps', (req, res) => {
+app.delete('/api/players/:id/lap', (req, res) => {
   const player_UUID = req.params.id;
   
   db.run(`
     DELETE FROM laps
-    WHERE player_uuid = ?
-    ORDER BY timestamp DESC
-    LIMIT 1
-  `, [player_UUID], function(err) {
+    WHERE player_uuid = ? AND timestamp = (
+      SELECT MAX(timestamp)
+      FROM laps
+      WHERE player_uuid = ?
+    )
+  `, [player_UUID, player_UUID], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -241,6 +245,106 @@ app.delete('/api/players/:id/laps', (req, res) => {
     res.json({
       status: 'success',
       message: 'Lap deleted successfully'
+    });
+  });
+});
+
+// Add a lap for a specific player
+app.post('/api/players/:id/laps', (req, res) => {
+  const player_UUID = req.params.id;
+  const timestamp = Date.now();
+  
+  db.run(`
+    INSERT INTO laps (player_uuid, timestamp)
+    VALUES (?, ?)
+  `, [player_UUID, timestamp], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Lap added successfully',
+      lapId: this.lastID
+    });
+  });
+});
+
+// Toggle player pitstop status
+app.put('/api/players/:id/pitstop', (req, res) => {
+  const player_UUID = req.params.id;
+  
+  db.run(`
+    UPDATE players
+    SET on_pitstop = NOT on_pitstop
+    WHERE player_uuid = ?
+  `, [player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    
+    // Get the updated player status
+    db.get(`
+      SELECT on_pitstop
+      FROM players
+      WHERE player_uuid = ?
+    `, [player_UUID], (err, row) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        status: 'success',
+        message: 'Pitstop status toggled successfully',
+        on_pitstop: row.on_pitstop
+      });
+    });
+  });
+});
+
+// Toggle player active status
+app.put('/api/players/:id/active', (req, res) => {
+  const player_UUID = req.params.id;
+  
+  db.run(`
+    UPDATE players
+    SET is_active = NOT is_active
+    WHERE player_uuid = ?
+  `, [player_UUID], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    
+    // Get the updated player status
+    db.get(`
+      SELECT is_active
+      FROM players
+      WHERE player_uuid = ?
+    `, [player_UUID], (err, row) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        status: 'success',
+        message: 'Active status toggled successfully',
+        is_active: row.is_active
+      });
     });
   });
 });
@@ -339,13 +443,13 @@ app.post('/api/player-team', (req, res) => {
 app.get('/api/leaderboard', (req, res) => {
   db.all(`
     SELECT p.player_uuid, p.name, t.color, p.on_pitstop,
-           COUNT(laps.id) as lap_count,
-           MAX(laps.timestamp) as last_lap_time
+           COUNT(laps.id) as lap_count
     FROM players p
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN laps ON p.player_uuid = laps.player_uuid
     WHERE p.is_active = 1
-    ORDER BY p.player_uuid
+    GROUP BY p.player_uuid, p.name, t.color, p.on_pitstop
+    ORDER BY lap_count DESC, p.name
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
