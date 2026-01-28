@@ -73,6 +73,17 @@
             backdrop-filter: blur(10px);
         }
 
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
         .players-section {
             display: block;
         }
@@ -277,6 +288,7 @@
 <body>
     <div class="container">
         <div id="status" class="status" style="display: none;"></div>
+        <a href="control.html" class="back-link">Control page</a>
         <div class="content">
             <div id="players-section" class="players-section">
                 <div class="stats">

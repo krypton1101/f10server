@@ -5,13 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft Racing Dashboard</title>
     <style>
+        @font-face {
+            font-family: 'F10Font';
+            src: url('fonts/Formula1-Display-Bold.ttf') format('opentype');
+            /* src: url('fonts/Minecraft Rus/minecraft.ttf') format('opentype'); */
+        }
+        body {
+            font-family: 'F10Font', sans-serif;
+            margin: 10;
+            padding: 10;
+            background-color: rgba(255, 255, 255, 0);
+        }
         #players-container {
             position: relative;
         }
         .player-bar {
+            --height: 108px;
+            --border-size: 8px;
+            --player-color: #ff6b6b; /* Default color */
             position: absolute;
-            left: 0;
+            isolation: isolate;
+            height: var(--height);
+            width: 708px;
+            color: white;
+            clip-path: polygon(0% 0%, calc(100% - var(--height)) 0%, 100% 100%, var(--border-size) 100%, var(--border-size) calc(100% - var(--border-size)), 0% calc(100% - var(--border-size)));
             transition: all 0.3s ease-out;
+        }
+        .player-bar::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(to right, var(--player-color), transparent);
+            clip-path: polygon(
+                var(--border-size) var(--border-size),
+                calc(100% - var(--height) + var(--border-size)) var(--border-size),
+                calc(100% - var(--border-size)) calc(100% - var(--border-size)),
+                var(--border-size) calc(100% - var(--border-size))
+            );
+        }
+        @keyframes pulse {
+            0% { background: rgb(150, 0, 250); }
+            50% { background: rgb(70, 0, 125); }
+            100% { background: rgb(150, 0, 250); }
+        }
+        .pit {
+            height: 30px;
+            width: 30px;
+            animation-name: pulse;
+            animation-duration: 2s;
+            animation-timing-function: ease;
+            animation-iteration-count: infinite;          
         }
     </style>
 </head>
@@ -27,7 +71,7 @@
     </div>
 
     <script>
-        const elementStep = 50;
+        const elementStep = 110;
         let players = [];
         let updateInterval;
         
@@ -41,6 +85,35 @@
                 }
             }
         }
+        
+        // Darken a hex color by a factor
+        function darken(hexColor, factor) {
+            // Remove the # if present
+            hexColor = hexColor.replace('#', '');
+            
+            // Parse the hex values for red, green, and blue
+            const r = parseInt(hexColor.substring(0, 2), 16);
+            const g = parseInt(hexColor.substring(2, 4), 16);
+            const b = parseInt(hexColor.substring(4, 6), 16);
+            
+            // Apply the darkening factor
+            const newR = Math.floor(r * factor);
+            const newG = Math.floor(g * factor);
+            const newB = Math.floor(b * factor);
+            
+            // Ensure values are within valid range (0-255)
+            const clampedR = Math.max(0, Math.min(255, newR));
+            const clampedG = Math.max(0, Math.min(255, newG));
+            const clampedB = Math.max(0, Math.min(255, newB));
+            
+            // Convert back to hex and pad with zeros if needed
+            const result = '#' +
+                clampedR.toString(16).padStart(2, '0') +
+                clampedG.toString(16).padStart(2, '0') +
+                clampedB.toString(16).padStart(2, '0');
+            
+            return result;
+        }
 
         // Load players data
         async function loadPlayers() {
@@ -50,8 +123,6 @@
                 updateDisplay();
             } catch (error) {
                 console.error('Error loading players:', error);
-                document.getElementById('players-container').innerHTML = 
-                    '<div class="no-players">Error loading players data</div>';
             }
         }
 
@@ -60,7 +131,7 @@
             const container = document.getElementById('players-container');
             
             if (players.length === 0) {
-                container.innerHTML = '<div class="no-players">No active players found</div>';
+                console.warn('Players list is empty!');
                 return;
             }
 
@@ -80,9 +151,11 @@
                             <div class="player-name"></div>
                             <div class="lap-count"></div>
                             <!--<div class="lap-time"></div>-->
+                            <div class="pit">P</div>
                         </div>
                     `;
-                    playerElement.style.backgroundColor = p.color;
+                    playerElement.style.background = "linear-gradient(" + darken(p.color, 0.4) + " 100px, black 100px)";
+                    playerElement.style.setProperty('--player-color', p.color);
                     playerElement.querySelector('.player-name').textContent = p.name;
                 }
                 
