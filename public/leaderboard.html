@@ -15,6 +15,7 @@
             --font-size: 40px;
             font-family: 'F10Font', sans-serif;
             font-size: var(--font-size);
+            text-shadow: 3px 3px black;
             margin: 10px;
             padding: 10px;
             background-color: rgba(255, 255, 255, 0);
@@ -60,22 +61,22 @@
             position: relative;
             top: calc((var(--height) - var(--font-size)) / 2);
             display: grid;
-            grid-template-columns: 3fr 1fr 1fr;
+            grid-template-columns: 5fr 1fr 1fr 1fr;
         }
         @keyframes pulse {
-            0% { background: rgb(150, 0, 250); }
-            50% { background: rgb(90, 0, 175); }
-            100% { background: rgb(150, 0, 250); }
+            0% { color: rgb(150, 0, 250); }
+            50% { color: rgb(90, 0, 175); }
+            100% { color: rgb(150, 0, 250); }
         }
         .pit {
             opacity: 0%;
             height: var(--font-size);
             width: var(--font-size);
             text-align: center;
-            animation-name: pulse;
+            /* animation-name: pulse;
             animation-duration: 2s;
             animation-timing-function: ease;
-            animation-iteration-count: infinite;
+            animation-iteration-count: infinite; */
             transition: all 0.3s ease-out;
         }
     </style>
