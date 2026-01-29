@@ -68,13 +68,15 @@
             100% { background: rgb(150, 0, 250); }
         }
         .pit {
+            opacity: 0%;
             height: var(--font-size);
             width: var(--font-size);
             text-align: center;
             animation-name: pulse;
             animation-duration: 2s;
             animation-timing-function: ease;
-            animation-iteration-count: infinite;          
+            animation-iteration-count: infinite;
+            transition: all 0.3s ease-out;
         }
     </style>
 </head>
@@ -155,9 +157,17 @@
             }
 
             // Create or update player elements
+            let inactive_players = 0;
             players.forEach((p, index) => {
                 let playerElement;
                 playerElement = document.getElementById(`uuid-${p.player_uuid}`);
+                if (!p.is_active) {
+                    if (!playerElement) {
+                        inactive_players += 1;
+                        return;
+                    }
+                    playerElement.style.opacity = '50%';
+                }
                 if (!playerElement) {
                     // Create new element
                     playerElement = document.createElement('div');
@@ -181,8 +191,9 @@
                 // Update element content and styles
                 
                 // Update child elements
-                playerElement.querySelector('.position-indicator').textContent = index + 1;
+                playerElement.querySelector('.position-indicator').textContent = index - inactive_players + 1;
                 playerElement.querySelector('.lap-count').textContent = p.lap_count;
+                playerElement.querySelector('.pit').style.opacity = p.on_pitstop ? '100%': '0%';
                 // Display last lap time if available
                 // if (p.last_lap_time) {
                 //     const lastLapDate = new Date(p.last_lap_time);
@@ -190,7 +201,7 @@
                 // }                 
 
                 // Apply the correct position
-                playerElement.style.top = index * elementStep+"px";
+                playerElement.style.top = (index - inactive_players) * elementStep+"px";
                 
                 // Add to container if it's a new element
                 if (!playerElement.parentNode) {

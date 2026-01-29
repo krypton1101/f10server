@@ -443,12 +443,11 @@ app.post('/api/player-team', (req, res) => {
 // Leaderboard API
 app.get('/api/leaderboard', (req, res) => {
   db.all(`
-    SELECT p.player_uuid, p.name, t.color, p.on_pitstop,
+    SELECT p.player_uuid, p.name, t.color, p.on_pitstop, p.is_active,
            COUNT(laps.id) as lap_count
     FROM players p
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN laps ON p.player_uuid = laps.player_uuid
-    WHERE p.is_active = 1
     GROUP BY p.player_uuid, p.name, t.color, p.on_pitstop
     ORDER BY lap_count DESC, p.name
   `, (err, rows) => {
