@@ -191,6 +191,9 @@
                 
                 // Update element content and styles
                 
+                if (p.is_active) {
+                    playerElement.style.opacity = '100%';
+                }
                 // Update child elements
                 playerElement.querySelector('.position-indicator').textContent = index - inactive_players + 1;
                 playerElement.querySelector('.lap-count').textContent = p.lap_count;

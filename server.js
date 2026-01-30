@@ -449,7 +449,7 @@ app.get('/api/leaderboard', (req, res) => {
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN laps ON p.player_uuid = laps.player_uuid
     GROUP BY p.player_uuid, p.name, t.color, p.on_pitstop
-    ORDER BY lap_count DESC, p.name
+    ORDER BY p.is_active DESC, lap_count DESC, p.name
   `, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
