@@ -281,16 +281,11 @@
                         </div>
                         
                         <button type="submit" class="btn btn-success">Update Player</button>
+                        <button type="button" class="btn btn-danger" id="delete-player-btn">Delete Player</button>
                     </form>
                 </div>
             </div>
             
-            <div class="data-section">
-                <h2>Laps</h2>
-                <div id="laps-table-container">
-                    <div class="loading">Loading laps table...</div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -373,52 +368,6 @@
             }
         }
 
-        // Load laps
-        async function loadLaps() {
-            try {
-                const response = await fetch(`/api/players/${playerUUID}/laps`);
-                const lapTimes = await response.json();
-                updateLapsTable(lapTimes);
-            } catch (error) {
-                console.error('Error loading laps:', error);
-                document.getElementById('laps-table-container').innerHTML =
-                    '<div class="no-data">Error loading laps</div>';
-            }
-        }
-
-        // Update laps table
-        function updateLapsTable(lapTimes) {
-            const container = document.getElementById('laps-table-container');
-            
-            if (lapTimes.length === 0) {
-                container.innerHTML = '<div class="no-data">No laps found</div>';
-                return;
-            }
-            
-            container.innerHTML = `
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Timestamp</th>
-                            <th>Lap time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${lapTimes.map((lap, index) => {
-                            return `
-                                <tr>
-                                    <td>${index + 1}</td>
-                                    <td>${new Date(lap.timestamp).toLocaleString()}</td>
-                                    <td>0</td>
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
         // Update player details
         async function updatePlayerDetails(event) {
             event.preventDefault();
@@ -478,11 +427,39 @@
             }
             else {
                 loadPlayerDetails();
-                loadLaps();
             }
 
             // Set up form submission
             document.getElementById('player-form').addEventListener('submit', updatePlayerDetails);
+        });
+
+        // Delete player
+        document.getElementById('delete-player-btn').addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to delete this player? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/players/${playerUUID}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showStatus('Player deleted successfully!', 'success');
+                    // Redirect to player list after a short delay
+                    setTimeout(() => {
+                        window.location.href = 'player_data.html';
+                    }, 1500);
+                } else {
+                    showStatus('Error deleting player: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting player:', error);
+                showStatus('Error deleting player', 'error');
+            }
         });
 
     </script>
