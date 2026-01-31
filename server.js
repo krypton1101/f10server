@@ -45,6 +45,101 @@ db.serialize(() => {
   )`);
 });
 
+// Function to synchronize lap count for a player
+function syncLapCount(ws, playerUuid, playerData) {
+  // Get current lap count for the player
+  db.get(`
+    SELECT COUNT(*) as current_lap_count
+    FROM laps
+    WHERE player_uuid = ?
+  `, [playerUuid], (err, row) => {
+    if (err) {
+      console.error('Error getting current lap count:', err);
+      ws.send(JSON.stringify({ error: 'Database error' }));
+      return;
+    }
+    
+    const currentLapCount = row.current_lap_count;
+    const targetLapCount = playerData.lap_count;
+    
+    console.log(`Player ${playerData.nickname} has ${currentLapCount} laps, target is ${targetLapCount}`);
+    
+    if (currentLapCount < targetLapCount) {
+      // Need to add laps
+      const lapsToAdd = targetLapCount - currentLapCount;
+      console.log(`Adding ${lapsToAdd} laps for player ${playerData.nickname}`);
+      
+      // Add the required number of laps using a transaction-like approach
+      let insertQueries = [];
+      for (let i = 0; i < lapsToAdd; i++) {
+        insertQueries.push(new Promise((resolve, reject) => {
+          db.run(`
+            INSERT INTO laps (player_uuid, timestamp, is_start)
+            VALUES (?, ?, ?)
+          `, [playerUuid, playerData.timestamp + i, playerData.is_start], (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        }));
+      }
+      
+      Promise.all(insertQueries)
+        .then(() => {
+          ws.send(JSON.stringify({
+            status: 'success',
+            player_uuid: playerUuid,
+            message: `Added ${lapsToAdd} laps for player ${playerData.nickname}`
+          }));
+          console.log(`Successfully added ${lapsToAdd} laps for player ${playerData.nickname}`);
+        })
+        .catch((err) => {
+          console.error('Error adding laps:', err);
+          ws.send(JSON.stringify({ error: 'Failed to add laps' }));
+        });
+    } else if (currentLapCount > targetLapCount) {
+      // Need to remove laps
+      const lapsToRemove = currentLapCount - targetLapCount;
+      console.log(`Removing ${lapsToRemove} laps for player ${playerData.nickname}`);
+      
+      // Remove the required number of laps (newest first)
+      db.run(`
+        DELETE FROM laps
+        WHERE player_uuid = ?
+        AND id IN (
+          SELECT id FROM laps
+          WHERE player_uuid = ?
+          ORDER BY timestamp DESC
+          LIMIT ?
+        )
+      `, [playerUuid, playerUuid, lapsToRemove], function(err) {
+        if (err) {
+          console.error('Error removing laps:', err);
+          ws.send(JSON.stringify({ error: 'Failed to remove laps' }));
+          return;
+        }
+        
+        ws.send(JSON.stringify({
+          status: 'success',
+          player_uuid: playerUuid,
+          message: `Removed ${lapsToRemove} laps for player ${playerData.nickname}`
+        }));
+        console.log(`Successfully removed ${lapsToRemove} laps for player ${playerData.nickname}`);
+      });
+    } else {
+      // Lap count is already correct
+      ws.send(JSON.stringify({
+        status: 'success',
+        player_uuid: playerUuid,
+        message: `Lap count for player ${playerData.nickname} is already correct (${targetLapCount})`
+      }));
+      console.log(`Lap count for player ${playerData.nickname} is already correct (${targetLapCount})`);
+    }
+  });
+}
+
 // WebSocket Server
 const wss = new WebSocket.Server({ port: WS_PORT });
 
@@ -56,32 +151,46 @@ wss.on('connection', (ws, req) => {
       const playerData = JSON.parse(data);
       
       // Validate the JSON structure
-      if (!playerData.UUID || !playerData.timestamp || playerData.is_start === undefined || playerData.is_start === null) {
+    	// "{\"nickname\":\"%s\",\"lap_count\":%d,\"timestamp\":%d,\"is_start\":%b}"
+      if (!playerData.nickname || playerData.lap_count === undefined ||
+         playerData.lap_count === null || typeof playerData.lap_count !== 'number' ||
+         !playerData.timestamp || playerData.is_start === undefined || playerData.is_start === null) {
         ws.send(JSON.stringify({ error: 'Invalid JSON format' }));
-        console.log(`Received invalid data`);
+        console.log(`Received invalid data: ${data}`);
         return;
       }
       
-      // If player does not exist, create a new record
-      db.run(`
-        INSERT OR IGNORE INTO players (player_uuid, name, team_id)
-        VALUES (?, "default", 0)
-      `, [playerData.UUID]);
-      
-      // Insert lap data
-      db.run(`
-        INSERT INTO laps (player_uuid, timestamp, is_start)
-        VALUES (?, ?, ?)
-      `, [playerData.UUID, playerData.timestamp, playerData.is_start]);
-      
-      ws.send(JSON.stringify({
-        status: 'success',
-        UUID: playerData.UUID,
-        message: 'Data received successfully'
-      }));
-      
-      console.log(`Received data for player ${playerData.UUID}`);
-      
+      // Get or create player
+      db.get(`
+        SELECT player_uuid FROM players WHERE name = ?
+      `, [playerData.nickname], (err, row) => {
+        if (err) {
+          console.error('Error querying player:', err);
+          ws.send(JSON.stringify({ error: 'Database error' }));
+          return;
+        }
+        
+        if (!row) {
+          // Player doesn't exist, create new player
+          const newPlayerUuid = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          db.run(`
+            INSERT INTO players (player_uuid, name, team_id)
+            VALUES (?, ?, 0)
+          `, [newPlayerUuid, playerData.nickname], function(err) {
+            if (err) {
+              console.error('Error creating player:', err);
+              ws.send(JSON.stringify({ error: 'Failed to create player' }));
+              return;
+            }
+            
+            console.log(`Created new player ${playerData.nickname} with UUID ${newPlayerUuid}`);
+            syncLapCount(ws, newPlayerUuid, playerData);
+          });
+        } else {
+          // Player exists, sync lap count
+          syncLapCount(ws, row.player_uuid, playerData);
+        }
+      });
     } catch (error) {
       console.error('Error processing WebSocket message:', error);
       ws.send(JSON.stringify({ error: 'Failed to process data' }));
